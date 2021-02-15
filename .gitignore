@@ -196,6 +196,7 @@ PublishScripts/
 *.nuget.props
 *.nuget.targets
 
+
 # Microsoft Azure Build Output
 csx/
 *.build.csdef
@@ -348,3 +349,6 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+# Custom Add Ignores
+**/Properties/launchSettings.json
