@@ -17,28 +17,67 @@ namespace CLIVideoPlayer
             @string = new StringBuilder();
         }
 
-        private static readonly KeyValuePair<int, char>[] conversion = new KeyValuePair<int, char>[9]
-        {
-            new KeyValuePair<int, char>(230, ' '),
-            new KeyValuePair<int, char>(200, '·'),
-            new KeyValuePair<int, char>(180, '*'),
-            new KeyValuePair<int, char>(160, ':'),
-            new KeyValuePair<int, char>(130, 'O'),
-            new KeyValuePair<int, char>(100, '&'),
-            new KeyValuePair<int, char>(70, '8'),
-            new KeyValuePair<int, char>(50, '#' ),
-            new KeyValuePair<int, char>(-1, '@' ),
-        };
+        // Too Slow
+        //private static readonly KeyValuePair<int, char>[] conversion = new KeyValuePair<int, char>[9]
+        //{
+        //    new KeyValuePair<int, char>(230, ' '),
+        //    new KeyValuePair<int, char>(200, '·'),
+        //    new KeyValuePair<int, char>(180, '*'),
+        //    new KeyValuePair<int, char>(160, ':'),
+        //    new KeyValuePair<int, char>(130, 'O'),
+        //    new KeyValuePair<int, char>(100, '&'),
+        //    new KeyValuePair<int, char>(70, '8'),
+        //    new KeyValuePair<int, char>(50, '#' ),
+        //    new KeyValuePair<int, char>(-1, '@' ),
+        //};
 
         private static char GetGrayShade(int redValue)
         {
-            for (int i = 0; i < conversion.Length; i++)
+            if (redValue > 230)
             {
-                if (256 - redValue > conversion[i].Key)
-                {
-                    return conversion[i].Value;
-                }
+                return '@';
             }
+
+            if (redValue > 200)
+            {
+                return '#';
+            }
+
+            if (redValue > 180)
+            {
+                return '8';
+            }
+
+            if (redValue > 160)
+            {
+                return '&';
+            }
+
+            if (redValue > 130)
+            {
+                return 'O';
+            }
+
+            if (redValue > 100)
+            {
+                return ':';
+            }
+
+            if (redValue > 70)
+            {
+                return '*';
+            }
+
+            if (redValue > 50)
+            {
+                return '·';
+            }
+
+            if (redValue > -1)
+            {
+                return ' ';
+            }
+
 
             throw new Exception($"GetGrayShade for value {redValue}");
         }

@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Reflection;
 using System.Threading.Tasks;
 
 namespace CLIVideoPlayer
@@ -13,9 +14,12 @@ namespace CLIVideoPlayer
     {
         private static async Task Main(string[] args)
         {
-            FFMediaToolkit.FFmpegLoader.FFmpegPath = Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg");
+            var exeLocation = Assembly.GetEntryAssembly().Location;
+            FFMediaToolkit.FFmpegLoader.FFmpegPath = Path.Combine(Path.GetDirectoryName(exeLocation), "ffmpeg");
 
-            ConsoleHelper.PrepareConsole(3);
+            //ConsoleHelper.PrepareConsole(3);
+            ConsoleHelper.PrepareConsole(6);
+            //ConsoleHelper.PrepareConsole(13);
 
             foreach (var file in args)
             {
