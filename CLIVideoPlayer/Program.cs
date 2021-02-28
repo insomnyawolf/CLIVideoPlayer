@@ -18,7 +18,7 @@ namespace CLIVideoPlayer
             FFMediaToolkit.FFmpegLoader.FFmpegPath = Path.Combine(Path.GetDirectoryName(exeLocation), "ffmpeg");
 
             //ConsoleHelper.PrepareConsole(3);
-            ConsoleHelper.PrepareConsole(6);
+            //ConsoleHelper.PrepareConsole(6);
             //ConsoleHelper.PrepareConsole(13);
 
             foreach (var file in args)
@@ -37,7 +37,7 @@ namespace CLIVideoPlayer
 
             Render.Title($"ShellEngine Test, Playing {Path.GetFileName(filePath)} at {framerate} fps");
 
-            var framePeriod = TimeSpan.FromMilliseconds(1000 / (framerate * 1.5));
+            var framePeriod = TimeSpan.FromMilliseconds(1000 / framerate);
 
             var size = new Size(Console.WindowWidth, Console.WindowHeight - 3);
 
@@ -52,11 +52,17 @@ namespace CLIVideoPlayer
 
             var bulkResize = new BulkImageResizer(size, temp.HorizontalResolution, temp.VerticalResolution);
 
+            var watch = Stopwatch.StartNew();
+
+            TimeSpan frameRenderDelay;
+
             try
             {
                 while (true)
                 {
                     // I don't use TryGetNextFrame because internally does the same and doesn't let me use async code
+                    watch.Restart();
+
                     var raw = file.Video.GetNextFrame().ToBitmap();
 
                     var resized = bulkResize.Resize(raw);
@@ -65,7 +71,14 @@ namespace CLIVideoPlayer
 
                     Render.NextFrame(textImg);
 
-                    //await Task.Delay(framePeriod);
+                    frameRenderDelay = framePeriod - TimeSpan.FromMilliseconds(watch.ElapsedMilliseconds);
+
+                    if (frameRenderDelay < TimeSpan.Zero)
+                    {
+                        frameRenderDelay = TimeSpan.Zero;
+                    }
+
+                    await Task.Delay(frameRenderDelay);
                 }
             }
             catch (EndOfStreamException)
