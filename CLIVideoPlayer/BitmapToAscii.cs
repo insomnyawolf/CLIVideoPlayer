@@ -17,69 +17,23 @@ namespace CLIVideoPlayer
             @string = new StringBuilder();
         }
 
-        // Too Slow
-        //private static readonly KeyValuePair<int, char>[] conversion = new KeyValuePair<int, char>[9]
-        //{
-        //    new KeyValuePair<int, char>(230, ' '),
-        //    new KeyValuePair<int, char>(200, '·'),
-        //    new KeyValuePair<int, char>(180, '*'),
-        //    new KeyValuePair<int, char>(160, ':'),
-        //    new KeyValuePair<int, char>(130, 'O'),
-        //    new KeyValuePair<int, char>(100, '&'),
-        //    new KeyValuePair<int, char>(70, '8'),
-        //    new KeyValuePair<int, char>(50, '#' ),
-        //    new KeyValuePair<int, char>(-1, '@' ),
-        //};
-
         private static char GetGrayShade(int redValue)
         {
-            if (redValue > 230)
+            // This is slower than if/else chaining but it's a bit more clear
+            // This is still MUCH faster than looping in a collection
+            return redValue switch
             {
-                return '@';
-            }
-
-            if (redValue > 200)
-            {
-                return '#';
-            }
-
-            if (redValue > 180)
-            {
-                return '8';
-            }
-
-            if (redValue > 160)
-            {
-                return '&';
-            }
-
-            if (redValue > 130)
-            {
-                return 'O';
-            }
-
-            if (redValue > 100)
-            {
-                return ':';
-            }
-
-            if (redValue > 70)
-            {
-                return '*';
-            }
-
-            if (redValue > 50)
-            {
-                return '·';
-            }
-
-            if (redValue > -1)
-            {
-                return ' ';
-            }
-
-
-            throw new Exception($"GetGrayShade for value {redValue}");
+                var num when num > 230 => '@',
+                var num when num > 200 => '#',
+                var num when num > 180 => '8',
+                var num when num > 160 => '&',
+                var num when num > 130 => 'O',
+                var num when num > 100 => ':',
+                var num when num > 70 => '*',
+                var num when num > 50 => '.',
+                var num when num > -1 => ' ',
+                _ => throw new Exception($"GetGrayShade for value {redValue}"),
+            };
         }
 
         private static Color ConvertToGrayScale(Color col)

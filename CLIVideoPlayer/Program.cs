@@ -18,7 +18,7 @@ namespace CLIVideoPlayer
             FFMediaToolkit.FFmpegLoader.FFmpegPath = Path.Combine(Path.GetDirectoryName(exeLocation), "ffmpeg");
 
             //ConsoleHelper.PrepareConsole(3);
-            //ConsoleHelper.PrepareConsole(6);
+            ConsoleHelper.PrepareConsole(6);
             //ConsoleHelper.PrepareConsole(13);
 
             foreach (var file in args)
