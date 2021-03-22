@@ -12,7 +12,7 @@ Compile and drag any video file into the executable
 
 * Add a way to select the render resolution in the launching arguments
 * More Intermediate Grey Tones
-* Multithread Decoding
+* Multithread Decoding => Oh man, that's harder than it sounds
 
 ## Done
 
