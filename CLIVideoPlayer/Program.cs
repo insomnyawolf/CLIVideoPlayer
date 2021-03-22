@@ -17,8 +17,9 @@ namespace CLIVideoPlayer
             var exeLocation = Assembly.GetEntryAssembly().Location;
             FFMediaToolkit.FFmpegLoader.FFmpegPath = Path.Combine(Path.GetDirectoryName(exeLocation), "ffmpeg");
 
+            ConsoleHelper.PrepareConsole(2);
             //ConsoleHelper.PrepareConsole(3);
-            ConsoleHelper.PrepareConsole(6);
+            //ConsoleHelper.PrepareConsole(6);
             //ConsoleHelper.PrepareConsole(13);
 
             foreach (var file in args)
@@ -33,11 +34,16 @@ namespace CLIVideoPlayer
         {
             var file = MediaFile.Open(filePath);
 
+            if (file.Video.Info.IsVariableFrameRate)
+            {
+                throw new NotImplementedException("Variable framerate videos aren't supported yet");
+            }
+
             var framerate = file.Video.Info.AvgFrameRate;
 
-            Render.Title($"ShellEngine Test, Playing {Path.GetFileName(filePath)} at {framerate} fps");
+            // Render.Title($"ShellEngine Test, Playing {Path.GetFileName(filePath)} at {framerate} fps");
 
-            var framePeriod = TimeSpan.FromMilliseconds(1000 / framerate);
+            double framePeriod = 1000 / framerate;
 
             var size = new Size(Console.WindowWidth, Console.WindowHeight - 3);
 
@@ -54,35 +60,48 @@ namespace CLIVideoPlayer
 
             var watch = Stopwatch.StartNew();
 
-            TimeSpan frameRenderDelay;
+            long frameDecodingDelay;
+            long frameRenderDelay = 0;
+            int frameDelay;
 
             try
             {
-                while (true)
+                for (int i = 0; i < file.Video.Info.NumberOfFrames.Value; i++)
                 {
-                    // I don't use TryGetNextFrame because internally does the same and doesn't let me use async code
-                    watch.Restart();
+                   // I don't use TryGetNextFrame because internally does the same and doesn't let me use async code
 
-                    var raw = file.Video.GetNextFrame().ToBitmap();
+                   var raw = file.Video.GetNextFrame().ToBitmap();
+
+                    watch.Restart();
 
                     var resized = bulkResize.Resize(raw);
 
-                    var textImg = bitmapToAscii.GrayscaleImageToASCIIBasic(resized);
+                    var textImg = bitmapToAscii.GetString(resized);
 
-                    Render.NextFrame(textImg);
+                    frameDecodingDelay = watch.ElapsedMilliseconds;
 
-                    frameRenderDelay = framePeriod - TimeSpan.FromMilliseconds(watch.ElapsedMilliseconds);
+                    frameDelay = (int)(framePeriod - frameDecodingDelay - frameRenderDelay);
 
-                    if (frameRenderDelay < TimeSpan.Zero)
+                    if (frameDelay < 0)
                     {
-                        frameRenderDelay = TimeSpan.Zero;
+                        frameDelay = 0;
                     }
 
-                    await Task.Delay(frameRenderDelay);
+                    await Task.Delay(frameDelay);
+
+                    watch.Restart();
+
+                    // I don't understand why or how this works, but it does (maybe)
+                    // It causes weird glitches when render times is higer than decoding delay
+
+                    Task.Run(() => Render.NextFrame(textImg));
+
+                    frameRenderDelay = watch.ElapsedMilliseconds;
                 }
             }
             catch (EndOfStreamException)
             {
+
             }
         }
 

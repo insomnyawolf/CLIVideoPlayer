@@ -53,9 +53,18 @@ namespace CLIVideoPlayer
 
             using (var graphics = Graphics.FromImage(destImage))
             {
-                graphics.CompositingMode = CompositingMode.SourceOver;
+                graphics.CompositingMode = CompositingMode.SourceCopy;
                 graphics.CompositingQuality = CompositingQuality.HighQuality;
-                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+
+                // Quality
+                //Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+
+                // Balance
+                //Graphics.InterpolationMode = InterpolationMode.Bilinear;
+
+                // Speed
+                graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+
                 graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
                 graphics.SmoothingMode = SmoothingMode.AntiAlias;
 

@@ -17,7 +17,7 @@ namespace CLIVideoPlayer
             @string = new StringBuilder();
         }
 
-        private static char GetGrayShade(int redValue)
+        private static char GetGrayCharacter(int redValue)
         {
             // This is slower than if/else chaining but it's a bit more clear
             // This is still MUCH faster than looping in a collection
@@ -42,12 +42,17 @@ namespace CLIVideoPlayer
             return Color.FromArgb(value, value, value);
         }
 
-        private static int GetGrayScaleBrightness(Color col)
+        private static int GetGrayShade(Color col)
         {
             return (col.R + col.G + col.B) / 3;
         }
 
-        public string GrayscaleImageToASCIIBasic(Bitmap bmp)
+        private static int GetGrayShadeG(Color col)
+        {
+            return ((col.R * 30) + (col.G * 59) + (col.B * 11)) / 100;
+        }
+
+        public string GetString(Bitmap bmp)
         {
             @string.Clear();
 
@@ -72,7 +77,7 @@ namespace CLIVideoPlayer
                         // parse to an int. Will be between 0-255.
                         // Append the "color" using various darknesses of ASCII
                         // character.
-                        @string.Append(GetGrayShade(((col.R * 30) + (col.G * 59) + (col.B * 11) )/ 100)); 
+                        @string.Append(GetGrayCharacter((GetGrayShadeG(col)))); 
 
 
                     }
