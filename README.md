@@ -10,9 +10,13 @@ Compile and drag any video file into the executable
 
 ## To do
 
-* Fix playback speed
 * Add a way to select the render resolution in the launching arguments
+* More Intermediate Grey Tones
+* Multithread Decoding => Oh man, that's harder than it sounds
 
+## Done
+
+* Fix playback speed
 
 ## Contact
 
