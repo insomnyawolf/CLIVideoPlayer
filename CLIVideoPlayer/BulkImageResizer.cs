@@ -45,41 +45,6 @@ namespace CLIVideoPlayer
             return DestImage;
         }
 
-        public static Bitmap ResizeSingle(Image image, Size size)
-        {
-            Bitmap destImage = new Bitmap(size.Width, size.Height);
-
-            destImage.SetResolution(image.HorizontalResolution, image.VerticalResolution);
-
-            using (var graphics = Graphics.FromImage(destImage))
-            {
-                graphics.CompositingMode = CompositingMode.SourceCopy;
-                graphics.CompositingQuality = CompositingQuality.HighQuality;
-
-                // Quality
-                //Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-
-                // Balance
-                //Graphics.InterpolationMode = InterpolationMode.Bilinear;
-
-                // Speed
-                graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
-
-                graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                graphics.SmoothingMode = SmoothingMode.AntiAlias;
-
-                using (var imageAttributes = new ImageAttributes())
-                {
-                    imageAttributes.SetWrapMode(WrapMode.TileFlipXY);
-                    var destRect = new Rectangle(0, 0, destImage.Width, destImage.Height);
-
-                    graphics.DrawImage(image, destRect, 0, 0, image.Width, image.Height, GraphicsUnit.Pixel, imageAttributes);
-                }
-            }
-
-            return destImage;
-        }
-
         public static Size AspectRatioResizeCalculator(Size origin, Size target)
         {
             var width = origin.Width;
@@ -90,6 +55,7 @@ namespace CLIVideoPlayer
 
             decimal coefficient = coefficientFitWidth < coefficientFitHeight ? coefficientFitWidth : coefficientFitHeight;
 
+            // Avoid Upscaling
             if (coefficient > 1)
             {
                 return origin;

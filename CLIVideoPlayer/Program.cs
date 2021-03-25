@@ -17,8 +17,8 @@ namespace CLIVideoPlayer
             var exeLocation = Assembly.GetEntryAssembly().Location;
             FFMediaToolkit.FFmpegLoader.FFmpegPath = Path.Combine(Path.GetDirectoryName(exeLocation), "ffmpeg");
 
-            ConsoleHelper.PrepareConsole(2);
-            //ConsoleHelper.PrepareConsole(3);
+            //ConsoleHelper.PrepareConsole(2);
+            ConsoleHelper.PrepareConsole(3);
             //ConsoleHelper.PrepareConsole(6);
             //ConsoleHelper.PrepareConsole(13);
 
@@ -50,6 +50,7 @@ namespace CLIVideoPlayer
             size = BulkImageResizer.AspectRatioResizeCalculator(file.Video.Info.FrameSize, size);
 
             // This fixed the console characters not being 1:1
+            // Works for linux, on window sit's replaced by ConsoleHelper.PrepareConsole()
             //size.Width *= 2;
 
             var bitmapToAscii = new BitmapToAscii();
