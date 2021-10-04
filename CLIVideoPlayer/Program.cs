@@ -56,7 +56,7 @@ namespace CLIVideoPlayer
 
             size = BulkImageResizer.AspectRatioResizeCalculator(temp.Size, size);
 
-            var bulkResize = new BulkImageResizer(size, temp.HorizontalResolution, temp.VerticalResolution, ResizerQuality.HighQuality);
+            var bulkResize = new BulkImageResizer(size, temp.HorizontalResolution, temp.VerticalResolution, ResizerQuality.HighSpeed);
 
             // +1 for the linebreaks
             size.Width += 1;
@@ -93,17 +93,24 @@ namespace CLIVideoPlayer
 
                     frameDelay = (int)(framePeriod - frameDecodingDelay - render.FrameRenderDelay);
 
+                    // FpsCounters are harder than i remember
+                    var tempTimer = framePeriod - frameDelay;
+                    Console.Title = $"Playing: '{filePath}' at {(tempTimer <= 0 ? 0 : 1000d/tempTimer)}fps";
+
                     if (frameDelay < 0)
                     {
                         frameDelay = 0;
                     }
 
-                    await Task.Delay(frameDelay);
+
+                    //await Task.Delay(frameDelay);
 
                     // I don't understand why or how this works, but it does (maybe)
                     // It causes weird glitches when render times is higer than decoding delay
 
-                    Task.Run(() => render.NextDiffFrame(frameBuffer));
+                    Task.Run(() => render.NextDiffFrame(ref frameBuffer));
+
+                    //render.NextDiffFrame(ref frameBuffer);
                 }
             }
             catch (EndOfStreamException)
