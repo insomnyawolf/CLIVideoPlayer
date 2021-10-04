@@ -17,8 +17,8 @@ namespace CLIVideoPlayer
             var exeLocation = Assembly.GetEntryAssembly().Location;
             FFMediaToolkit.FFmpegLoader.FFmpegPath = Path.Combine(Path.GetDirectoryName(exeLocation), "ffmpeg");
 
-            //ConsoleHelper.PrepareConsole(2);
-            ConsoleHelper.PrepareConsole(3);
+            ConsoleHelper.PrepareConsole(2);
+            //ConsoleHelper.PrepareConsole(3);
             //ConsoleHelper.PrepareConsole(6);
             //ConsoleHelper.PrepareConsole(13);
 
@@ -56,7 +56,7 @@ namespace CLIVideoPlayer
 
             size = BulkImageResizer.AspectRatioResizeCalculator(temp.Size, size);
 
-            var bulkResize = new BulkImageResizer(size, temp.HorizontalResolution, temp.VerticalResolution);
+            var bulkResize = new BulkImageResizer(size, temp.HorizontalResolution, temp.VerticalResolution, ResizerQuality.HighQuality);
 
             // +1 for the linebreaks
             size.Width += 1;
@@ -103,7 +103,7 @@ namespace CLIVideoPlayer
                     // I don't understand why or how this works, but it does (maybe)
                     // It causes weird glitches when render times is higer than decoding delay
 
-                    Task.Run(() => render.NextDiffFrame(ref frameBuffer));
+                    Task.Run(() => render.NextDiffFrame(frameBuffer));
                 }
             }
             catch (EndOfStreamException)

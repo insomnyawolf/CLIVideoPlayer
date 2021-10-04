@@ -4,6 +4,13 @@ using System.Drawing.Imaging;
 
 namespace CLIVideoPlayer
 {
+    public enum ResizerQuality
+    {
+        HighQuality,
+        Balanced,
+        HighSpeed
+    }
+
     public class BulkImageResizer
     {
         private Bitmap DestImage;
@@ -12,26 +19,39 @@ namespace CLIVideoPlayer
         private Rectangle destRect;
 
         // More info on https://stackoverflow.com/questions/11020710/is-graphics-drawimage-too-slow-for-bigger-images
-        public BulkImageResizer(Size size, float HorizontalResolution, float VerticalResolution)
+        public BulkImageResizer(Size size, float HorizontalResolution, float VerticalResolution, ResizerQuality ResizerQuality = ResizerQuality.Balanced)
         {
             DestImage = new Bitmap(size.Width, size.Height);
             DestImage.SetResolution(HorizontalResolution, VerticalResolution);
 
             Graphics = Graphics.FromImage(DestImage);
-            Graphics.CompositingMode = CompositingMode.SourceCopy;
-            Graphics.CompositingQuality = CompositingQuality.HighQuality;
 
-            // Quality
-            //Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    Graphics.CompositingMode = CompositingMode.SourceCopy;
 
-            // Balance
-            //Graphics.InterpolationMode = InterpolationMode.Bilinear;
+            switch (ResizerQuality)
+            {
+                case ResizerQuality.HighQuality:
+                    Graphics.CompositingQuality = CompositingQuality.HighQuality;
+                    Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                    break;
+                case ResizerQuality.Balanced:
+                    Graphics.CompositingQuality = CompositingQuality.HighQuality;
+                    Graphics.InterpolationMode = InterpolationMode.Bilinear;
+                    Graphics.PixelOffsetMode = PixelOffsetMode.Half;
+                    Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                    break;
+                case ResizerQuality.HighSpeed:
+                    Graphics.CompositingQuality = CompositingQuality.HighSpeed;
+                    Graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+                    Graphics.PixelOffsetMode = PixelOffsetMode.HighSpeed;
+                    Graphics.SmoothingMode = SmoothingMode.None;
+                    break;
 
-            // Speed
-            Graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+            }
 
-            Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-            Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            
 
             ImageAttributes = new ImageAttributes();
             ImageAttributes.SetWrapMode(WrapMode.TileFlipXY);

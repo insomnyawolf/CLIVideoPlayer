@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -6,14 +7,13 @@ using System.Text;
 
 namespace CLIVideoPlayer
 {
-
-    // Considerate to save previous frame and only edit needed pixels
     public class Render
     {
-        public Stream StdOut { get; set; } = Console.OpenStandardOutput(Console.BufferWidth * Console.BufferHeight);
-        //public Stream StdOut { get; set; } = File.OpenWrite("test.txt");
-        public Stopwatch Watch { get; } = Stopwatch.StartNew();
+        public Stream StdOut { get; set; }
+        private Stopwatch Watch { get; } = Stopwatch.StartNew();
         public long FrameRenderDelay { get; set; } = 0;
+
+        private ArrayPool<byte> reservedMemory;
 
         private char[] FrameBuffer;
 
@@ -23,6 +23,15 @@ namespace CLIVideoPlayer
         {
             this.RenderSize = RenderSize;
             this.FrameBuffer = new char[RenderSize.Width * RenderSize.Height];
+
+            for (int i = 0; i < this.FrameBuffer.Length; i++)
+            {
+                this.FrameBuffer[0] = 'P';
+            }
+
+            this.StdOut = Console.OpenStandardOutput(Console.BufferWidth * Console.BufferHeight);
+
+            reservedMemory = ArrayPool<byte>.Create();
         }
 
         public void NextFrame(string content, int verticalOffset = 0)
@@ -38,7 +47,7 @@ namespace CLIVideoPlayer
             FrameRenderDelay = Watch.ElapsedMilliseconds;
         }
 
-        public void NextDiffFrame(ref char[] content, int verticalOffset = 0)
+        public void NextDiffFrame(char[] content, int verticalOffset = 0)
         {
             Watch.Restart();
 
@@ -48,7 +57,8 @@ namespace CLIVideoPlayer
 
             for (int x = 0; x < FrameBuffer.Length; x++)
             {
-                if (content[x] != FrameBuffer[x])
+                var equals = content[x].Equals(FrameBuffer[x]);
+                if (!equals)
                 {
                     if (!isDifferent)
                     {
@@ -58,9 +68,10 @@ namespace CLIVideoPlayer
 
                     FrameBuffer[x] = content[x];
                 }
-                else if (content[x] == FrameBuffer[x] && isDifferent)
+                else if (equals && isDifferent)
                 {
-                    DrawChunk(content[startingPoint..(x-1)], startingPoint);
+
+                    DrawChunk(ref content, startingPoint, x - 1);
                 }
                 else
                 {
@@ -68,30 +79,28 @@ namespace CLIVideoPlayer
                 }
             }
 
-            //if (isDifferent)
+            if (isDifferent)
             {
-                DrawChunk(content[startingPoint..content.Length], startingPoint);
+                DrawChunk(ref content, startingPoint, content.Length);
             }
-
-            //Console.SetCursorPosition(0, verticalOffset);
-
-            //var bytes = Encoding.ASCII.GetBytes(content + "\n");
-
-            //StdOut.Write(bytes, 0, bytes.Length);
 
             FrameBuffer = content;
 
             FrameRenderDelay = Watch.ElapsedMilliseconds;
         }
 
-        private void DrawChunk(char[] content, int position)
+        private void DrawChunk(ref char[] content, int start, int end)
         {
-            var coords = CalculateCoords(position);
+            var coords = CalculateCoords(start);
             Console.SetCursorPosition(coords.Item1, coords.Item2);
 
-            var bytes = Encoding.UTF8.GetBytes(content);
-            StdOut.Write(bytes, 0, bytes.Length);
+            // How does this even work??? ↓
 
+            var count = end - start;
+
+            var bytes = reservedMemory.Rent(count * 2);
+            var lenght = Encoding.UTF8.GetBytes(content, start, count, bytes, 0);
+            StdOut.Write(bytes, 0, lenght);
         }
 
         private (int, int) CalculateCoords(int pos)
