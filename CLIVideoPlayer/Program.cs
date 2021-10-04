@@ -24,7 +24,9 @@ namespace CLIVideoPlayer
 
             foreach (var file in args)
             {
+                //Render.StdOut = new FileStream(file + ".txt", FileMode.CreateNew, FileAccess.Write);
                 await PlayFile(file);
+                //Render.StdOut.Flush();
             }
 
             ConsoleHelper.RestoreConsole();
@@ -45,43 +47,51 @@ namespace CLIVideoPlayer
 
             double framePeriod = 1000 / framerate;
 
-            var size = new Size(Console.WindowWidth, Console.WindowHeight - 3);
+            // edit this if the image is too small or too big and makes earthquakes
+            int safeArea = 1;
 
-            size = BulkImageResizer.AspectRatioResizeCalculator(file.Video.Info.FrameSize, size);
-
-            // This fixed the console characters not being 1:1
-            // Works for linux, on window sit's replaced by ConsoleHelper.PrepareConsole()
-            //size.Width *= 2;
-
-            var bitmapToAscii = new BitmapToAscii();
+            var size = new Size(Console.WindowWidth - safeArea, Console.WindowHeight - safeArea);
 
             var temp = file.Video.GetFrame(TimeSpan.Zero).ToBitmap();
 
+            size = BulkImageResizer.AspectRatioResizeCalculator(temp.Size, size);
+
             var bulkResize = new BulkImageResizer(size, temp.HorizontalResolution, temp.VerticalResolution);
+
+            // +1 for the linebreaks
+            size.Width += 1;
+
+            char[] frameBuffer = new char[size.Width * size.Height];
+
+            for(int i = size.Width - 1; i < frameBuffer.Length; i+= size.Width)
+            {
+                frameBuffer[i] = '\n';
+            }
+
+            Render render = new Render(size);
 
             var watch = Stopwatch.StartNew();
 
             long frameDecodingDelay;
-            long frameRenderDelay = 0;
             int frameDelay;
 
             try
             {
                 for (int i = 0; i < file.Video.Info.NumberOfFrames.Value; i++)
                 {
-                   // I don't use TryGetNextFrame because internally does the same and doesn't let me use async code
-
-                   var raw = file.Video.GetNextFrame().ToBitmap();
+                    // I don't use TryGetNextFrame because internally does the same and doesn't let me use async code
 
                     watch.Restart();
 
+                    var raw = file.Video.GetNextFrame().ToBitmap();
+
                     var resized = bulkResize.Resize(raw);
 
-                    var textImg = bitmapToAscii.GetString(resized);
+                    BitmapToAscii.UpdateFrameBuffer(resized, ref frameBuffer);
 
                     frameDecodingDelay = watch.ElapsedMilliseconds;
 
-                    frameDelay = (int)(framePeriod - frameDecodingDelay - frameRenderDelay);
+                    frameDelay = (int)(framePeriod - frameDecodingDelay - render.FrameRenderDelay);
 
                     if (frameDelay < 0)
                     {
@@ -90,14 +100,10 @@ namespace CLIVideoPlayer
 
                     await Task.Delay(frameDelay);
 
-                    watch.Restart();
-
                     // I don't understand why or how this works, but it does (maybe)
                     // It causes weird glitches when render times is higer than decoding delay
 
-                    Task.Run(() => Render.NextFrame(textImg));
-
-                    frameRenderDelay = watch.ElapsedMilliseconds;
+                    Task.Run(() => render.NextDiffFrame(ref frameBuffer));
                 }
             }
             catch (EndOfStreamException)

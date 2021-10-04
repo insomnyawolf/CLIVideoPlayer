@@ -23,7 +23,7 @@ namespace CLIVideoPlayer
 
             // Quality
             //Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            
+
             // Balance
             //Graphics.InterpolationMode = InterpolationMode.Bilinear;
 

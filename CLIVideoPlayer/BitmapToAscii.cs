@@ -1,10 +1,7 @@
 ﻿using FastBitmapLib;
 using System;
-using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace CLIVideoPlayer
 {
@@ -77,9 +74,7 @@ namespace CLIVideoPlayer
                         // parse to an int. Will be between 0-255.
                         // Append the "color" using various darknesses of ASCII
                         // character.
-                        @string.Append(GetGrayCharacter((GetGrayShadeG(col)))); 
-
-
+                        @string.Append(GetGrayCharacter(GetGrayShadeG(col)));
                     }
                     // If we're at the width, insert a line break
                     @string.Append(Environment.NewLine);
@@ -87,6 +82,43 @@ namespace CLIVideoPlayer
             }
 
             return @string.ToString();
+        }
+
+        public static void UpdateFrameBuffer(Bitmap bmp, ref char[] frameBuffer)
+        {
+            Color col;
+
+            int pos = 0;
+
+            using (var fb = bmp.FastLock())
+            {
+                // Loop through each pixel in the bitmap
+                for (int y = 0; y < bmp.Height; y++)
+                {
+                    for (int x = 0; x < bmp.Width; x++)
+                    {
+                        // Get the color of the current pixel
+                        //col = bmp.GetPixel(x, y);
+
+                        col = fb.GetPixel(x, y);
+
+                        // To convert to grayscale, the easiest method is to add
+                        // the R+G+B colors and divide by three to get the gray
+                        // scaled color.
+                        // Get the R(ed) value from the grayscale color,
+                        // parse to an int. Will be between 0-255.
+                        // Append the "color" using various darknesses of ASCII
+                        // character.
+                        frameBuffer[pos] = GetGrayCharacter(GetGrayShadeG(col));
+
+                        pos++;
+                    }
+
+                    // Linebreak here
+                    //frameBuffer[pos] = '\n';
+                    pos++;
+                }
+            }
         }
     }
 }

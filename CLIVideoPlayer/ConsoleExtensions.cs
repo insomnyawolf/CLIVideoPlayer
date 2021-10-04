@@ -58,7 +58,7 @@ namespace CLIVideoPlayer
             Console.WindowWidth = Console.LargestWindowWidth;
             Console.WindowHeight = Console.LargestWindowHeight;
 
-            Console.SetBufferSize(Console.WindowWidth + 1, Console.WindowHeight + 1);
+            Console.SetBufferSize(Console.WindowWidth, Console.WindowHeight);
 
             Console.SetWindowPosition(0, 0);
 
