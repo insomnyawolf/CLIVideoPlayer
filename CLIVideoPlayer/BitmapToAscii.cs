@@ -84,6 +84,7 @@ namespace CLIVideoPlayer
             return @string.ToString();
         }
 
+        // Yay, no allocations \:D/
         public static void UpdateFrameBuffer(Bitmap bmp, ref char[] frameBuffer)
         {
             Color col;
@@ -114,7 +115,7 @@ namespace CLIVideoPlayer
                         pos++;
                     }
 
-                    // Linebreak here
+                    // Linebreak here but it's already done on the framebuffer creation
                     //frameBuffer[pos] = '\n';
                     pos++;
                 }
