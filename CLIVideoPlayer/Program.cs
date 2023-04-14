@@ -17,9 +17,10 @@ namespace CLIVideoPlayer
             var exeLocation = Assembly.GetEntryAssembly().Location;
             FFMediaToolkit.FFmpegLoader.FFmpegPath = Path.Combine(Path.GetDirectoryName(exeLocation), "ffmpeg");
 
-            ConsoleHelper.PrepareConsole(2);
-            //ConsoleHelper.PrepareConsole(3);
+            //ConsoleHelper.PrepareConsole(2);
+            ConsoleHelper.PrepareConsole(3);
             //ConsoleHelper.PrepareConsole(6);
+            //ConsoleHelper.PrepareConsole(9);
             //ConsoleHelper.PrepareConsole(13);
 
             foreach (var file in args)
@@ -93,7 +94,7 @@ namespace CLIVideoPlayer
 
                     frameDelay = (int)(framePeriod - frameDecodingDelay - render.FrameRenderDelay);
 
-                    // FpsCounters are harder than i remember
+                    // FpsCounters are harder than i remember => it doesnh't take into account the frame delay
                     var tempTimer = framePeriod - frameDelay;
                     Console.Title = $"Playing: '{filePath}' at {(tempTimer <= 0 ? 0 : 1000d/tempTimer)}fps";
 
@@ -102,8 +103,7 @@ namespace CLIVideoPlayer
                         frameDelay = 0;
                     }
 
-
-                    //await Task.Delay(frameDelay);
+                    await Task.Delay(frameDelay);
 
                     // I don't understand why or how this works, but it does (maybe)
                     // It causes weird glitches when render times is higer than decoding delay
