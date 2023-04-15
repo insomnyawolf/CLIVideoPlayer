@@ -31,7 +31,6 @@ namespace CLIVideoPlayer
 
         public static void PrepareConsole(short pixelSize)
         {
-
             // Setting the font and fontsize
             // Other values can be changed too
             // Instantiating CONSOLE_FONT_INFO_EX and setting its size (the function will fail otherwise)
@@ -58,7 +57,9 @@ namespace CLIVideoPlayer
             Console.WindowWidth = Console.LargestWindowWidth;
             Console.WindowHeight = Console.LargestWindowHeight;
 
+            
             Console.SetBufferSize(Console.WindowWidth, Console.WindowHeight);
+            //Console.SetWindowSize(Console.WindowWidth, Console.WindowHeight);
 
             Console.SetWindowPosition(0, 0);
 
@@ -112,19 +113,6 @@ namespace CLIVideoPlayer
 
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] // Edit sizeconst if the font name is too big
             public string FaceName;
-        }
-
-        static public T DeepCopy<T>(T obj)
-        {
-            BinaryFormatter s = new BinaryFormatter();
-            using (MemoryStream ms = new MemoryStream())
-            {
-                s.Serialize(ms, obj);
-                ms.Position = 0;
-                T t = (T)s.Deserialize(ms);
-
-                return t;
-            }
         }
     }
 }

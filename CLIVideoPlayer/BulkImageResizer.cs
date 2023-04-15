@@ -1,4 +1,5 @@
-﻿using System.Drawing;
+﻿using Microsoft.Extensions.ObjectPool;
+using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 
@@ -11,6 +12,14 @@ namespace CLIVideoPlayer
         HighSpeed
     }
 
+    public class BulkImageResizerSettings
+    {
+        public Size Size { get; set; }
+        public float HorizontalResolution { get; set; }
+        public float VerticalResolution { get; set; }
+        public ResizerQuality ResizerQuality { get; set; }
+    }
+
     public class BulkImageResizer
     {
         private Bitmap DestImage;
@@ -19,16 +28,16 @@ namespace CLIVideoPlayer
         private Rectangle destRect;
 
         // More info on https://stackoverflow.com/questions/11020710/is-graphics-drawimage-too-slow-for-bigger-images
-        public BulkImageResizer(Size size, float HorizontalResolution, float VerticalResolution, ResizerQuality ResizerQuality = ResizerQuality.Balanced)
+        public BulkImageResizer(BulkImageResizerSettings BulkImageResizerSettings)
         {
-            DestImage = new Bitmap(size.Width, size.Height);
-            DestImage.SetResolution(HorizontalResolution, VerticalResolution);
+            DestImage = new Bitmap(BulkImageResizerSettings.Size.Width, BulkImageResizerSettings.Size.Height);
+            DestImage.SetResolution(BulkImageResizerSettings.HorizontalResolution, BulkImageResizerSettings.VerticalResolution);
 
             Graphics = Graphics.FromImage(DestImage);
 
-                    Graphics.CompositingMode = CompositingMode.SourceCopy;
+            Graphics.CompositingMode = CompositingMode.SourceCopy;
 
-            switch (ResizerQuality)
+            switch (BulkImageResizerSettings.ResizerQuality)
             {
                 case ResizerQuality.HighQuality:
                     Graphics.CompositingQuality = CompositingQuality.HighQuality;
@@ -50,8 +59,6 @@ namespace CLIVideoPlayer
                     break;
 
             }
-
-            
 
             ImageAttributes = new ImageAttributes();
             ImageAttributes.SetWrapMode(WrapMode.TileFlipXY);
