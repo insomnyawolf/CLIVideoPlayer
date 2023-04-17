@@ -1,21 +1,19 @@
 ﻿using System;
-using System.IO;
 using System.Runtime.InteropServices;
-using System.Runtime.Serialization.Formatters.Binary;
 
 namespace CLIVideoPlayer
 {
     public static class ConsoleHelper
     {
         [DllImport("kernel32.dll", SetLastError = true)]
-        static extern Int32 SetCurrentConsoleFontEx(
-            IntPtr ConsoleOutput,
+        static extern int SetCurrentConsoleFontEx(
+            nint ConsoleOutput,
             bool MaximumWindow,
             ref CONSOLE_FONT_INFO_EX ConsoleCurrentFontEx);
 
         [DllImport("kernel32.dll", SetLastError = true)]
-        static extern Int32 GetCurrentConsoleFontEx(
-            IntPtr ConsoleOutput,
+        static extern int GetCurrentConsoleFontEx(
+            nint ConsoleOutput,
             bool MaximumWindow,
             ref CONSOLE_FONT_INFO_EX ConsoleCurrentFontEx);
 
@@ -25,16 +23,16 @@ namespace CLIVideoPlayer
         }
 
         [DllImport("kernel32")]
-        private static extern IntPtr GetStdHandle(StdHandle index);
+        private static extern nint GetStdHandle(StdHandle index);
 
-        private static readonly IntPtr INVALID_HANDLE_VALUE = new IntPtr(-1);
+        //private static readonly IntPtr INVALID_HANDLE_VALUE = new IntPtr(-1);
 
         public static void PrepareConsole(short pixelSize)
         {
             // Setting the font and fontsize
             // Other values can be changed too
             // Instantiating CONSOLE_FONT_INFO_EX and setting its size (the function will fail otherwise)
-            CONSOLE_FONT_INFO_EX ConsoleFontInfo = new CONSOLE_FONT_INFO_EX();
+            var ConsoleFontInfo = new CONSOLE_FONT_INFO_EX();
             ConsoleFontInfo.cbSize = (uint)Marshal.SizeOf(ConsoleFontInfo);
             windowHandle = GetStdHandle(StdHandle.OutputHandle);
 
@@ -49,30 +47,27 @@ namespace CLIVideoPlayer
 
             SetCurrentConsoleFontEx(windowHandle, false, ref ConsoleFontInfo);
 
-            DefaultConsoleWindowWidth = Console.WindowWidth;
-            DefaultConsoleWindowHeight = Console.WindowHeight;
-            DefaultConsoleWindowWidthBuffer = Console.BufferWidth;
-            DefaultConsoleWindowHeightBuffer = Console.BufferHeight;
+            Console.SetBufferSize(Console.WindowWidth, Console.WindowHeight);
+            Console.SetWindowSize(Console.WindowWidth, Console.WindowHeight);
+
+            //DefaultConsoleWindowWidth = Console.WindowWidth;
+            //DefaultConsoleWindowHeight = Console.WindowHeight;
+            //DefaultConsoleWindowWidthBuffer = Console.BufferWidth;
+            //DefaultConsoleWindowHeightBuffer = Console.BufferHeight;
 
             Console.WindowWidth = Console.LargestWindowWidth;
             Console.WindowHeight = Console.LargestWindowHeight;
 
-            
-            Console.SetBufferSize(Console.WindowWidth, Console.WindowHeight);
-            //Console.SetWindowSize(Console.WindowWidth, Console.WindowHeight);
-
             Console.SetWindowPosition(0, 0);
-
         }
 
         private static CONSOLE_FONT_INFO_EX OldValues;
-        private static IntPtr windowHandle;
+        private static nint windowHandle;
 
-        private static int DefaultConsoleWindowWidth;
-        private static int DefaultConsoleWindowHeight;
-        private static int DefaultConsoleWindowWidthBuffer;
-        private static int DefaultConsoleWindowHeightBuffer;
-
+        //private static int DefaultConsoleWindowWidth;
+        //private static int DefaultConsoleWindowHeight;
+        //private static int DefaultConsoleWindowWidthBuffer;
+        //private static int DefaultConsoleWindowHeightBuffer;
 
         public static void RestoreConsole()
         {
