@@ -45,17 +45,21 @@ namespace CLIVideoPlayer
 
     public class BitmapToAscii
     {
+        private static readonly ConcurrentDictionary<Bgr24, byte[]> ColorCache = new ();
+
         static readonly Bgr24 Black = new(0, 0, 0);
         static readonly byte[] BlackBytes = GetBytes(Black);
-        private static readonly ConcurrentDictionary<Bgr24, byte[]> ColorCache = new ();
-        public static byte[] NewLine = Encoding.UTF8.GetBytes("\n");
-        //public static byte[] Pixel = Encoding.UTF8.GetBytes("█");
-        public static byte[] Pixel = Encoding.UTF8.GetBytes(" ");
-        //public static byte[] Pixel = Encoding.UTF8.GetBytes("\uFF00");
+        
+        public static string NewLine = "\n";
+        public static byte[] NewLineBytes = Encoding.UTF8.GetBytes(NewLine);
+
+
+        public static string Pixel = " ";
+        public static byte[] PixelBytes = Encoding.UTF8.GetBytes(Pixel);
 
         public static byte[] GetBytes(Bgr24 color)
         {
-            return Encoding.UTF8.GetBytes($"\x1b[48;2;{color.R};{color.G};{color.B}m");
+            return Encoding.UTF8.GetBytes($"\x1b[48;2;{color.R};{color.G};{color.B}m{Pixel}");
         }
 
         public Stream FrameBuffer { get; set; }
@@ -82,16 +86,18 @@ namespace CLIVideoPlayer
                             ColorCache.TryAdd(color, value);
                         }
 
+                        // Append the color change and the pixel
                         await FrameBuffer.WriteAsync(value);
                     }
-
-                    // Append the bytes
-                    await FrameBuffer.WriteAsync(Pixel);
+                    else
+                    {
+                        // Append the pixel
+                        await FrameBuffer.WriteAsync(PixelBytes);
+                    }
                 }
 
                 // Append new line because it doesn't look right otherwise
-                //await FrameBuffer.WriteAsync(BlackBytes);
-                await FrameBuffer.WriteAsync(NewLine);
+                await FrameBuffer.WriteAsync(NewLineBytes);
             }
 
             FrameBuffer.Position = 0;

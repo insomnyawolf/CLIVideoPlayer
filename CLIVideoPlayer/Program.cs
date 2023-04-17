@@ -17,7 +17,7 @@ namespace CLIVideoPlayer
     {
         private static async Task Main(string[] args)
         {
-            var exeLocation = Assembly.GetEntryAssembly().Location;
+            var exeLocation = AppDomain.CurrentDomain.BaseDirectory;
             FFMediaToolkit.FFmpegLoader.FFmpegPath = Path.Combine(Path.GetDirectoryName(exeLocation), "ffmpeg");
 
             //ConsoleHelper.PrepareConsole(2);
@@ -33,7 +33,7 @@ namespace CLIVideoPlayer
                 //Render.StdOut.Flush();
             }
 
-            ConsoleHelper.RestoreConsole();
+            //ConsoleHelper.RestoreConsole();
         }
 
         private static async Task PlayFile(string filePath)
@@ -165,7 +165,6 @@ namespace CLIVideoPlayer
             public int Position { get; set; }
             public Image<Bgr24> Frame { get; set; }
         }
-
 
         public static Size AspectRatioResizeCalculator(Size origin, Size target)
         {
