@@ -60,9 +60,9 @@ namespace CLIVideoPlayer
             new ConversionValue(-1, " "),
         };
 
-        public byte[] NewLine = Encoding.UTF8.GetBytes("\n");
+        public static byte[] NewLine = Encoding.UTF8.GetBytes("\n");
 
-        private byte[] GetGrayCharacter(int brightnessValue)
+        private static byte[] GetGrayCharacter(int brightnessValue)
         {
             // This is slower than if/else chaining but it's a bit more clean
             // Maybe we could try custom source generators
