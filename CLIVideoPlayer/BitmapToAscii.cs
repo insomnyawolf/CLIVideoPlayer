@@ -3,8 +3,8 @@ using SixLabors.ImageSharp;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using System;
 using Microsoft.Extensions.ObjectPool;
+using System.Collections.Concurrent;
 
 namespace CLIVideoPlayer
 {
@@ -45,50 +45,25 @@ namespace CLIVideoPlayer
 
     public class BitmapToAscii
     {
-        public Stream FrameBuffer { get; set; }
-
-        private static readonly ConversionValue[] ConversionTable = new[]
-        {
-            new ConversionValue(230, "@"),
-            new ConversionValue(200, "#"),
-            new ConversionValue(180, "8"),
-            new ConversionValue(160, "&"),
-            new ConversionValue(130, "O"),
-            new ConversionValue(100, ":"),
-            new ConversionValue(70, "*"),
-            new ConversionValue(50, "."),
-            new ConversionValue(-1, " "),
-        };
-
+        static readonly Bgr24 Black = new(0, 0, 0);
+        static readonly byte[] BlackBytes = GetBytes(Black);
+        private static readonly ConcurrentDictionary<Bgr24, byte[]> ColorCache = new ();
         public static byte[] NewLine = Encoding.UTF8.GetBytes("\n");
+        //public static byte[] Pixel = Encoding.UTF8.GetBytes("█");
+        public static byte[] Pixel = Encoding.UTF8.GetBytes(" ");
+        //public static byte[] Pixel = Encoding.UTF8.GetBytes("\uFF00");
 
-        private static byte[] GetGrayCharacter(int brightnessValue)
+        public static byte[] GetBytes(Bgr24 color)
         {
-            // This is slower than if/else chaining but it's a bit more clean
-            // Maybe we could try custom source generators
-            for (int Index = 0; Index < ConversionTable.Length; Index++)
-            {
-                var item = ConversionTable[Index];
-
-                if (brightnessValue > item.Threshold)
-                {
-                    return item.Value;
-                }
-            }
-
-            throw new Exception($"GetGrayShade for value {brightnessValue}");
+            return Encoding.UTF8.GetBytes($"\x1b[48;2;{color.R};{color.G};{color.B}m");
         }
 
-        private static int GetGrayShadeWeighted(Bgr24 col)
-        {
-            // To convert to grayscale, the easiest method is to add
-            // the R+G+B colors and divide by three to get the gray
-            // scaled color.
-            return ((col.R * 30) + (col.G * 59) + (col.B * 11)) / 100;
-        }
+        public Stream FrameBuffer { get; set; }
 
         public async Task Convert(Image<Bgr24> image)
         {
+            Bgr24? lastColor = null;
+
             // Loop through each pixel in the bitmap
             for (int y = 0; y < image.Height; y++)
             {
@@ -98,19 +73,24 @@ namespace CLIVideoPlayer
                     //col = bmp.GetPixel(x, y);
                     var color = image[x, y];
 
-                    // Get the value from the grayscale color,
-                    // parse to an int. Will be between 0-255.
-                    var shade = GetGrayShadeWeighted(color);
+                    if (color != lastColor)
+                    {
+                        if (!ColorCache.TryGetValue(color, out var value))
+                        {
+                            value = GetBytes(color);
 
-                    // Get the bytes that represent the value we found
-                    // in our cache list
-                    var bytes = GetGrayCharacter(shade);
+                            ColorCache.TryAdd(color, value);
+                        }
+
+                        await FrameBuffer.WriteAsync(value);
+                    }
 
                     // Append the bytes
-                    await FrameBuffer.WriteAsync(bytes);
+                    await FrameBuffer.WriteAsync(Pixel);
                 }
 
                 // Append new line because it doesn't look right otherwise
+                //await FrameBuffer.WriteAsync(BlackBytes);
                 await FrameBuffer.WriteAsync(NewLine);
             }
 

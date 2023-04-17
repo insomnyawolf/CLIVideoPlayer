@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace CLIVideoPlayer
@@ -23,9 +24,17 @@ namespace CLIVideoPlayer
         }
         public Stream StdOut { get; set; }
 
+
+        public static byte[] CursorReset = Encoding.UTF8.GetBytes("\x1b[99999;99999");
+        public static byte[] CursorSavePos = Encoding.UTF8.GetBytes("\x1b[s");
+        public static byte[] CursorLoadPos = Encoding.UTF8.GetBytes("\x1b[u");
+        public static byte[] ClearScreen = Encoding.UTF8.GetBytes("\x1b[2J");
+
         public Render()
         {
-            this.StdOut = Console.OpenStandardOutput(Console.BufferWidth * Console.BufferHeight);
+            this.StdOut = Console.OpenStandardOutput();
+
+            StdOut.Write(CursorSavePos);
         }
 
         public async Task Draw(Stream FrameBuffer)
@@ -48,7 +57,9 @@ namespace CLIVideoPlayer
 
             Watch.Restart();
 
-            Console.SetCursorPosition(0, Console.CursorTop);
+            //Console.SetCursorPosition(0, Console.CursorTop);
+
+            await StdOut.WriteAsync(CursorLoadPos);
 
             await FrameBuffer.CopyToAsync(StdOut);
         }

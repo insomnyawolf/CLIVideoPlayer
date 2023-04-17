@@ -20,7 +20,7 @@ namespace CLIVideoPlayer
             var exeLocation = Assembly.GetEntryAssembly().Location;
             FFMediaToolkit.FFmpegLoader.FFmpegPath = Path.Combine(Path.GetDirectoryName(exeLocation), "ffmpeg");
 
-            ConsoleHelper.PrepareConsole(2);
+            //ConsoleHelper.PrepareConsole(2);
             //ConsoleHelper.PrepareConsole(3);
             //ConsoleHelper.PrepareConsole(6);
             //ConsoleHelper.PrepareConsole(9);
@@ -36,55 +36,6 @@ namespace CLIVideoPlayer
             ConsoleHelper.RestoreConsole();
         }
 
-        public static Size AspectRatioResizeCalculator(Size origin, Size target)
-        {
-            var width = origin.Width;
-            var height = origin.Height;
-
-            decimal coefficientFitWidth = CoefficientChange(width, target.Width);
-            decimal coefficientFitHeight = CoefficientChange(height, target.Height);
-
-            decimal coefficient = coefficientFitWidth < coefficientFitHeight ? coefficientFitWidth : coefficientFitHeight;
-
-            // Avoid Upscaling
-            if (coefficient > 1)
-            {
-                return origin;
-            }
-
-            width = decimal.ToInt32(coefficient * origin.Width);
-            height = decimal.ToInt32(coefficient * origin.Height);
-
-            // Images must have at least 1 px on both sides
-            // This fixes it
-            coefficient = 0;
-            if (width < 1)
-            {
-                coefficient = CoefficientChange(width, 1);
-            }
-            else if (height < 1)
-            {
-                coefficient = CoefficientChange(height, 1);
-            }
-
-            if (coefficient != 0)
-            {
-                height = decimal.ToInt32(coefficient * origin.Width);
-                width = decimal.ToInt32(coefficient * origin.Height);
-            }
-
-            return new Size
-            {
-                Width = width,
-                Height = height,
-            };
-        }
-
-        private static decimal CoefficientChange(int valorInicial, int valorFinal)
-        {
-            return 100M / valorInicial * valorFinal / 100;
-        }
-
         private static async Task PlayFile(string filePath)
         {
             var file = MediaFile.Open(filePath);
@@ -97,13 +48,15 @@ namespace CLIVideoPlayer
             var framerate = file.Video.Info.AvgFrameRate;
 
             // edit this if the image is too small or too big and makes earthquakes
-            int safeArea = 1;
+            const int safeArea = 5;
 
             var consoleSize = new Size(Console.WindowWidth - safeArea, Console.WindowHeight - safeArea);
 
             var videoSizeRaw = file.Video.GetFrame(TimeSpan.Zero).ImageSize;
 
             var videoSize = new Size(videoSizeRaw.Width, videoSizeRaw.Height);
+
+            videoSize.Width *= 2;
 
             var calculatedSize = AspectRatioResizeCalculator(videoSize, consoleSize);
 
@@ -211,6 +164,56 @@ namespace CLIVideoPlayer
         {
             public int Position { get; set; }
             public Image<Bgr24> Frame { get; set; }
+        }
+
+
+        public static Size AspectRatioResizeCalculator(Size origin, Size target)
+        {
+            var width = origin.Width;
+            var height = origin.Height;
+
+            decimal coefficientFitWidth = CoefficientChange(width, target.Width);
+            decimal coefficientFitHeight = CoefficientChange(height, target.Height);
+
+            decimal coefficient = coefficientFitWidth < coefficientFitHeight ? coefficientFitWidth : coefficientFitHeight;
+
+            // Avoid Upscaling
+            if (coefficient > 1)
+            {
+                return origin;
+            }
+
+            width = decimal.ToInt32(coefficient * origin.Width);
+            height = decimal.ToInt32(coefficient * origin.Height);
+
+            // Images must have at least 1 px on both sides
+            // This fixes it
+            coefficient = 0;
+            if (width < 1)
+            {
+                coefficient = CoefficientChange(width, 1);
+            }
+            else if (height < 1)
+            {
+                coefficient = CoefficientChange(height, 1);
+            }
+
+            if (coefficient != 0)
+            {
+                height = decimal.ToInt32(coefficient * origin.Width);
+                width = decimal.ToInt32(coefficient * origin.Height);
+            }
+
+            return new Size
+            {
+                Width = width,
+                Height = height,
+            };
+        }
+
+        private static decimal CoefficientChange(int valorInicial, int valorFinal)
+        {
+            return 100M / valorInicial * valorFinal / 100;
         }
     }
 }
