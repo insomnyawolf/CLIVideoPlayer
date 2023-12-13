@@ -3,8 +3,11 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using static System.Formats.Asn1.AsnWriter;
 
 namespace CLIVideoPlayer;
 
@@ -45,59 +48,64 @@ public class ConversionValue
 
 public class BitmapToAscii
 {
-    private static readonly ConcurrentDictionary<Bgr24, byte[]> ColorCache = new();
-
-    static readonly Bgr24 Black = new(0, 0, 0);
-    static readonly byte[] BlackBytes = GetBytes(Black);
+    private static readonly ConcurrentDictionary<Vector4, byte[]> ColorCache = new();
 
     public static string NewLine = "\n";
     public static byte[] NewLineBytes = Encoding.UTF8.GetBytes(NewLine);
 
-
     public static string Pixel = " ";
     public static byte[] PixelBytes = Encoding.UTF8.GetBytes(Pixel);
 
-    public static byte[] GetBytes(Bgr24 color)
+    public static byte[] GetBytes(Vector4 color)
     {
-        return Encoding.UTF8.GetBytes($"\x1b[48;2;{color.R};{color.G};{color.B}m{Pixel}");
+        var colorRaw = new Rgba32();
+        colorRaw.FromVector4(color);
+        return Encoding.UTF8.GetBytes($"\x1b[48;2;{colorRaw.R};{colorRaw.G};{colorRaw.B}m{Pixel}");
     }
 
-    public Stream FrameBuffer { get; set; }
+    public MemoryStream FrameBuffer { get; set; }
 
-    public async Task Convert(Image<Bgr24> image)
+    public void Convert(Image<Bgr24> image)
     {
-        Bgr24? lastColor = null;
+        Vector4? lastColor = null;
+
+        var total = image.Height * image.Width;
+
+        var currentX = 0;
+
+        image.DangerousTryGetSinglePixelMemory(out var memory);
+
+        var span = memory.Span;
 
         // Loop through each pixel in the bitmap
-        for (int y = 0; y < image.Height; y++)
+        for (int i = 0; i < total; i++)
         {
-            for (int x = 0; x < image.Width; x++)
+            if (currentX == image.Width)
             {
-                // Get the color of the current pixel
-                //col = bmp.GetPixel(x, y);
-                var color = image[x, y];
-
-                if (color != lastColor)
-                {
-                    if (!ColorCache.TryGetValue(color, out var value))
-                    {
-                        value = GetBytes(color);
-
-                        ColorCache.TryAdd(color, value);
-                    }
-
-                    // Append the color change and the pixel
-                    await FrameBuffer.WriteAsync(value);
-                }
-                else
-                {
-                    // Append the pixel
-                    await FrameBuffer.WriteAsync(PixelBytes);
-                }
+                currentX = 0;
+                // Append new line because it doesn't look right otherwise
+                FrameBuffer.Write(NewLineBytes);
             }
 
-            // Append new line because it doesn't look right otherwise
-            await FrameBuffer.WriteAsync(NewLineBytes);
+            // Get the color of the current pixel
+            // And convert it to a vector
+            var color = span[i].ToVector4();
+
+            if (color == lastColor)
+            {
+                // No Color Update, It's the same
+                FrameBuffer.Write(PixelBytes);
+            }
+            else
+            {
+                // Cache Colors
+                var colorBytes = ColorCache.GetOrAdd(key: color, valueFactory: GetBytes);
+
+                // Append the color change and the pixel
+                FrameBuffer.WriteAsync(colorBytes);
+            }
+
+            currentX++;
         }
 
         FrameBuffer.Position = 0;

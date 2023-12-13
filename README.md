@@ -11,12 +11,13 @@ Compile and drag any video file into the executable
 ## To do
 
 * Add a way to select the render resolution in the launching arguments
-* More Intermediate Grey Tones
-* Multithread Decoding => Oh man, that's harder than it sounds
 
 ## Done
 
+* SIMD
 * Fix playback speed
+* More Intermediate Grey Tones (it has colors now)
+* Multithread Decoding => Oh man, that's harder than it sounds
 
 ## Contact
 

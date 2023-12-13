@@ -12,62 +12,29 @@ internal class DynamicParallel
     /// Executes a parallel for-each operation on an async-enumerable sequence,
     /// enforcing a dynamic maximum degree of parallelism.
     /// </summary>
-    public static Task ForEachAsync<TSource>(
-        IEnumerable<TSource> source,
-        DynamicParallelOptions options,
-        Func<TSource, CancellationToken, ValueTask> body)
+    public static Task ForEachAsync<TSource>(IEnumerable<TSource> source, DynamicParallelOptions options, Func<TSource, CancellationToken, ValueTask> body)
     {
-        if (source == null)
-        {
-            throw new ArgumentNullException(nameof(source));
-        }
+        ArgumentNullException.ThrowIfNull(source);
 
-        if (options == null)
-        {
-            throw new ArgumentNullException(nameof(options));
-        }
+        ArgumentNullException.ThrowIfNull(options);
 
-        if (body == null)
-        {
-            throw new ArgumentNullException(nameof(body));
-        }
+        ArgumentNullException.ThrowIfNull(body);
 
-        var throttler = new SemaphoreSlim(options.MaxDegreeOfParallelism);
-        options.DegreeOfParallelismChangedDelta += Options_ChangedDelta;
-        void Options_ChangedDelta(object sender, int delta)
-        {
-            if (delta > 0)
-            {
-                throttler.Release(delta);
-            }
-            else
-            {
-                for (int i = delta; i < 0; i++)
-                {
-                    throttler.WaitAsync();
-                }
-            }
-        }
+        options.Prepare();
 
-        IEnumerable<TSource> GetThrottledSource()
+        return Parallel.ForEachAsync(GetThrottledSource(source, options), options, async (item, ct) =>
         {
-            foreach (var item in source)
-            {
-                throttler.Wait();
-                yield return item;
-            }
-        }
+            await body(item, ct).ConfigureAwait(false);
+        });
+    }
 
-        return Parallel.ForEachAsync(GetThrottledSource(), options, async (item, ct) =>
+    private static IEnumerable<TSource> GetThrottledSource<TSource>(IEnumerable<TSource> source, DynamicParallelOptions options)
+    {
+        foreach (var item in source)
         {
-            try { await body(item, ct).ConfigureAwait(false); }
-            finally { throttler.Release(); }
-        }).ContinueWith(t =>
-        {
-            options.DegreeOfParallelismChangedDelta -= Options_ChangedDelta;
-            return t;
-        }, default, TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default)
-            .Unwrap();
+            options.WaitAvailable();
+            yield return item;
+        }
     }
 }
 
@@ -76,33 +43,21 @@ internal class DynamicParallel
 /// </summary>
 public class DynamicParallelOptions : ParallelOptions
 {
-    private int _maxDegreeOfParallelism;
+    public int MaxParalelismTarget { get; set; }
+    internal CustomSemaphoreSlim Semaphore;
 
-    public event EventHandler<int> DegreeOfParallelismChangedDelta;
-
-    public DynamicParallelOptions()
+    internal void Prepare()
     {
-        // Set the base DOP to the maximum.
-        // That's what the native Parallel.ForEachAsync will see.
-        base.MaxDegreeOfParallelism = Int32.MaxValue;
-        _maxDegreeOfParallelism = Environment.ProcessorCount;
+        Semaphore = new CustomSemaphoreSlim(MaxParalelismTarget);
     }
 
-    public new int MaxDegreeOfParallelism
+    internal void WaitAvailable()
     {
-        get { return _maxDegreeOfParallelism; }
-        set
-        {
-            //// commenting that let's us stop when we don't need more data
-            //if (value < 1) throw new ArgumentOutOfRangeException();
-            if (value == _maxDegreeOfParallelism)
-            {
-                return;
-            }
+        Semaphore.Wait();
+    }
 
-            int delta = value - _maxDegreeOfParallelism;
-            DegreeOfParallelismChangedDelta?.Invoke(this, delta);
-            _maxDegreeOfParallelism = value;
-        }
+    internal void Release()
+    {
+        Semaphore.Release();
     }
 }

@@ -78,7 +78,7 @@ public static class Program
 
         for (int i = 0; i < totalFrames; i++)
         {
-            channels.Add(Channel.CreateUnbounded<BitmapToAscii>());
+            channels.Add(Channel.CreateBounded<BitmapToAscii>(1));
         }
 
         var bufferSize = (int)framerate * 1;
@@ -87,10 +87,36 @@ public static class Program
         {
             // Oh wait wtf, it's so optimized that can run test on single core at 35fps on hd when unlimited D:
             // but if you add more threads it gets crazy with the memory allocations and has a unstable framerate when preloading the video
-            MaxDegreeOfParallelism = bufferSize
+#if DEBUG && !true
+            MaxDegreeOfParallelism = 1,
+#endif
+            MaxParalelismTarget = 24,
         };
 
-        _ = DynamicParallel.ForEachAsync(file.Video.GetFramesEnumerable(), parallelOptions, async (framePos, cancellationToken) =>
+        var pending = Task.Run(async() =>
+        {
+            // Wait for frames as soon as possible
+            for (int i = 0; i < channels.Count; i++)
+            {
+                // Paralelization limit to avoid pre-loading the whole video at once
+                // we only cache n seconds
+                var preRenderFrameObjetive = i + bufferSize;
+
+                // we compare the started process to the objetive
+                int objetiveDifference = preRenderFrameObjetive - StartedToProcessProcessedFrames;
+
+                var converter = await channels[i].Reader.ReadAsync();
+
+                await render.Draw(converter.FrameBuffer);
+
+                parallelOptions.Release();
+
+                // Return cached object
+                converters.Return(converter);
+            }
+        });
+
+        await DynamicParallel.ForEachAsync(file.Video.GetFramesEnumerable(), parallelOptions, async (framePos, ct) =>
         {
             var image = framePos.Frame;
 
@@ -101,7 +127,7 @@ public static class Program
 
             var converter = converters.Get();
 
-            await converter.Convert(image);
+            converter.Convert(image);
 
             var channel = channels[framePos.Position].Writer;
 
@@ -110,40 +136,19 @@ public static class Program
             channel.Complete();
         });
 
-        for (int i = 0; i < channels.Count; i++)
-        {
-            // Paralelization limit to avoid pre-loading the whole video at once
-            // we only cache n seconds
-            var preRenderFrameObjetive = i + bufferSize;
-
-            // we compare the started process to the objetive
-            int objetiveDifference = preRenderFrameObjetive - StartedToProcessProcessedFrames;
-
-            // if the objetice is acomplished we still keep at least 1 thread running
-            if (objetiveDifference < 1)
-            {
-                objetiveDifference = 0;
-            }
-
-            parallelOptions.MaxDegreeOfParallelism = objetiveDifference;
-
-            var channel = channels[i];
-
-            await foreach (var converter in channel.Reader.ReadAllAsync())
-            {
-                await render.Draw(converter.FrameBuffer);
-
-                // Return cached object
-                converters.Return(converter);
-            }
-        }
+        await pending;
     }
 
     public static int StartedToProcessProcessedFrames = 0;
 
+    private static readonly Configuration Configuration = new()
+    {
+        PreferContiguousImageBuffers = true,
+    };
+
     public static Image<Bgr24> ToBitmap(this ImageData imageData)
     {
-        return Image.LoadPixelData<Bgr24>(imageData.Data, imageData.ImageSize.Width, imageData.ImageSize.Height);
+        return Image.LoadPixelData<Bgr24>(Configuration, imageData.Data, imageData.ImageSize.Width, imageData.ImageSize.Height);
     }
 
     private static IEnumerable<FramePosition> GetFramesEnumerable(this VideoStream video)
@@ -160,33 +165,6 @@ public static class Program
 
             yield return res;
         }
-    }
-
-    public static async Task ConvertPictureAsync(string path, Stream output)
-    {
-        var image = await Image.LoadAsync(path);
-
-        var targetSize = new Size(1080, 1920) / 10;
-
-        var resize = AspectRatioResizeCalculator(image.Size, targetSize);
-
-        resize.Width *= 2;
-
-        image.Mutate((ob) =>
-        {
-            ob.Resize(resize);
-        });
-
-        var converter = new BitmapToAscii()
-        {
-            FrameBuffer = new MemoryStream(0),
-        };
-
-        var img = image.CloneAs<Bgr24>();
-
-        await converter.Convert(img);
-
-        await converter.FrameBuffer.CopyToAsync(output);
     }
 
     public class FramePosition
@@ -242,5 +220,54 @@ public static class Program
     private static decimal CoefficientChange(int valorInicial, int valorFinal)
     {
         return 100M / valorInicial * valorFinal / 100;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    public static async Task ConvertPictureAsync(string path, Stream output)
+    {
+        var image = await Image.LoadAsync(path);
+
+        var targetSize = new Size(1080, 1920) / 10;
+
+        var resize = AspectRatioResizeCalculator(image.Size, targetSize);
+
+        resize.Width *= 2;
+
+        image.Mutate((ob) =>
+        {
+            ob.Resize(resize);
+        });
+
+        var converter = new BitmapToAscii()
+        {
+            FrameBuffer = new MemoryStream(0),
+        };
+
+        var img = image.CloneAs<Bgr24>();
+
+        converter.Convert(img);
+
+        await converter.FrameBuffer.CopyToAsync(output);
     }
 }
