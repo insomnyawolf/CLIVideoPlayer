@@ -20,10 +20,19 @@ namespace CLIVideoPlayer
             var exeLocation = AppDomain.CurrentDomain.BaseDirectory;
             FFMediaToolkit.FFmpegLoader.FFmpegPath = Path.Combine(Path.GetDirectoryName(exeLocation), "ffmpeg");
 
+            //foreach (var file in args)
+            //{
+            //    using var output  = new FileStream(file + ".txt", FileMode.CreateNew, FileAccess.Write);
+            //    await ConvertPictureAsync(file, output);
+            //    await output.FlushAsync();
+            //}
+
+            //return;
+
             //ConsoleHelper.PrepareConsole(2);
             //ConsoleHelper.PrepareConsole(3);
             //ConsoleHelper.PrepareConsole(6);
-            //ConsoleHelper.PrepareConsole(9);
+            ConsoleHelper.PrepareConsole(9);
             //ConsoleHelper.PrepareConsole(13);
 
             foreach (var file in args)
@@ -158,6 +167,33 @@ namespace CLIVideoPlayer
 
                 yield return res;
             }
+        }
+
+        public static async Task ConvertPictureAsync(string path, Stream output)
+        {
+            var image = await Image.LoadAsync(path);
+
+            var targetSize = new Size(1080, 1920) / 10;
+
+            var resize = AspectRatioResizeCalculator(image.Size, targetSize);
+
+            resize.Width *= 2;
+
+            image.Mutate((ob) =>
+            {
+                ob.Resize(resize);
+            });
+
+            var converter = new BitmapToAscii()
+            {
+                FrameBuffer = new MemoryStream(0),
+            };
+
+            var img = image.CloneAs<Bgr24>();
+
+            await converter.Convert(img);
+
+            await converter.FrameBuffer.CopyToAsync(output);
         }
 
         public class FramePosition
