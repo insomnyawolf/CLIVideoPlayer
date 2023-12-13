@@ -7,248 +7,240 @@ using SixLabors.ImageSharp.Processing;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
-namespace CLIVideoPlayer
+namespace CLIVideoPlayer;
+
+public static class Program
 {
-    public static class Program
+    private static async Task Main(string[] args)
     {
-        private static async Task Main(string[] args)
+        var exeLocation = AppDomain.CurrentDomain.BaseDirectory;
+        FFMediaToolkit.FFmpegLoader.FFmpegPath = Path.Combine(Path.GetDirectoryName(exeLocation), "ffmpeg");
+
+        //foreach (var file in args)
+        //{
+        //    using var output  = new FileStream(file + ".txt", FileMode.CreateNew, FileAccess.Write);
+        //    await ConvertPictureAsync(file, output);
+        //    await output.FlushAsync();
+        //}
+
+        //return;
+
+        foreach (var file in args)
         {
-            var exeLocation = AppDomain.CurrentDomain.BaseDirectory;
-            FFMediaToolkit.FFmpegLoader.FFmpegPath = Path.Combine(Path.GetDirectoryName(exeLocation), "ffmpeg");
-
-            //foreach (var file in args)
-            //{
-            //    using var output  = new FileStream(file + ".txt", FileMode.CreateNew, FileAccess.Write);
-            //    await ConvertPictureAsync(file, output);
-            //    await output.FlushAsync();
-            //}
-
-            //return;
-
-            //ConsoleHelper.PrepareConsole(2);
-            //ConsoleHelper.PrepareConsole(3);
-            //ConsoleHelper.PrepareConsole(6);
-            ConsoleHelper.PrepareConsole(9);
-            //ConsoleHelper.PrepareConsole(13);
-
-            foreach (var file in args)
-            {
-                //Render.StdOut = new FileStream(file + ".txt", FileMode.CreateNew, FileAccess.Write);
-                await PlayFile(file);
-                //Render.StdOut.Flush();
-            }
-
-            //ConsoleHelper.RestoreConsole();
+            //Render.StdOut = new FileStream(file + ".txt", FileMode.CreateNew, FileAccess.Write);
+            await PlayFile(file);
+            //Render.StdOut.Flush();
         }
 
-        private static async Task PlayFile(string filePath)
+        //ConsoleHelper.RestoreConsole();
+    }
+
+    private static async Task PlayFile(string filePath)
+    {
+        var file = MediaFile.Open(filePath);
+
+        if (file.Video.Info.IsVariableFrameRate)
         {
-            var file = MediaFile.Open(filePath);
-
-            if (file.Video.Info.IsVariableFrameRate)
-            {
-                throw new NotImplementedException("Variable framerate videos aren't supported yet");
-            }
-
-            var framerate = file.Video.Info.AvgFrameRate;
-
-            // edit this if the image is too small or too big and makes earthquakes
-            const int safeArea = 5;
-
-            var consoleSize = new Size(Console.WindowWidth - safeArea, Console.WindowHeight - safeArea);
-
-            var videoSizeRaw = file.Video.GetFrame(TimeSpan.Zero).ImageSize;
-
-            var videoSize = new Size(videoSizeRaw.Width, videoSizeRaw.Height);
-
-            videoSize.Width *= 2;
-
-            var calculatedSize = AspectRatioResizeCalculator(videoSize, consoleSize);
-
-            var converters = new DefaultObjectPoolProvider().Create(new BitmapToAsciiPooledObjectPolicy()
-            {
-                CacheDefaultCapacity = 0,
-            });
-
-            var render = new Render()
-            {
-                TargetFramerate = framerate,
-            };
-
-            var totalFrames = file.Video.Info.NumberOfFrames.Value;
-
-            var channels = new List<Channel<BitmapToAscii>>(totalFrames);
-
-            for (int i = 0; i < totalFrames; i++)
-            {
-                channels.Add(Channel.CreateUnbounded<BitmapToAscii>());
-            }
-
-            var bufferSize = (int)framerate * 1;
-
-            var parallelOptions = new DynamicParallelOptions()
-            {
-                // Oh wait wtf, it's so optimized that can run test on single core at 35fps on hd when unlimited D:
-                // but if you add more threads it gets crazy with the memory allocations and has a unstable framerate when preloading the video
-                MaxDegreeOfParallelism = bufferSize
-            };
-
-            _ = DynamicParallel.ForEachAsync(file.Video.GetFramesEnumerable(), parallelOptions, async (framePos, cancellationToken) =>
-            {
-                var image = framePos.Frame;
-
-                image.Mutate((ob) =>
-                {
-                    ob.Resize(calculatedSize);
-                });
-
-                var converter = converters.Get();
-
-                await converter.Convert(image);
-
-                var channel = channels[framePos.Position].Writer;
-
-                channel.TryWrite(converter);
-
-                channel.Complete();
-            });
-
-            for (int i = 0; i < channels.Count; i++)
-            {
-                // Paralelization limit to avoid pre-loading the whole video at once
-                // we only cache n seconds
-                var preRenderFrameObjetive = i + bufferSize;
-
-                // we compare the started process to the objetive
-                int objetiveDifference = preRenderFrameObjetive - StartedToProcessProcessedFrames;
-
-                // if the objetice is acomplished we still keep at least 1 thread running
-                if (objetiveDifference < 1)
-                {
-                    objetiveDifference = 0;
-                }
-
-                parallelOptions.MaxDegreeOfParallelism = objetiveDifference;
-
-                var channel = channels[i];
-
-                await foreach (var converter in channel.Reader.ReadAllAsync())
-                {
-                    await render.Draw(converter.FrameBuffer);
-
-                    // Return cached object
-                    converters.Return(converter);
-                }
-            }
+            throw new NotImplementedException("Variable framerate videos aren't supported yet");
         }
 
-        public static int StartedToProcessProcessedFrames = 0;
+        var framerate = file.Video.Info.AvgFrameRate;
 
-        public static Image<Bgr24> ToBitmap(this ImageData imageData)
+        // edit this if the image is too small or too big and makes earthquakes
+        const int safeArea = 5;
+
+        var consoleSize = new Size(Console.WindowWidth - safeArea, Console.WindowHeight - safeArea);
+
+        var videoSizeRaw = file.Video.GetFrame(TimeSpan.Zero).ImageSize;
+
+        var videoSize = new Size(videoSizeRaw.Width, videoSizeRaw.Height);
+
+        videoSize.Width *= 2;
+
+        var calculatedSize = AspectRatioResizeCalculator(videoSize, consoleSize);
+
+        var converters = new DefaultObjectPoolProvider().Create(new BitmapToAsciiPooledObjectPolicy()
         {
-            return Image.LoadPixelData<Bgr24>(imageData.Data, imageData.ImageSize.Width, imageData.ImageSize.Height);
+            CacheDefaultCapacity = 0,
+        });
+
+        var render = new Render()
+        {
+            TargetFramerate = framerate,
+        };
+
+        var totalFrames = file.Video.Info.NumberOfFrames.Value;
+
+        var channels = new List<Channel<BitmapToAscii>>(totalFrames);
+
+        for (int i = 0; i < totalFrames; i++)
+        {
+            channels.Add(Channel.CreateUnbounded<BitmapToAscii>());
         }
 
-        private static IEnumerable<FramePosition> GetFramesEnumerable(this VideoStream video)
+        var bufferSize = (int)framerate * 1;
+
+        var parallelOptions = new DynamicParallelOptions()
         {
-            while (video.TryGetNextFrame(out var frame))
-            {
-                var res = new FramePosition()
-                {
-                    Frame = frame.ToBitmap(),
-                    Position = StartedToProcessProcessedFrames,
-                };
+            // Oh wait wtf, it's so optimized that can run test on single core at 35fps on hd when unlimited D:
+            // but if you add more threads it gets crazy with the memory allocations and has a unstable framerate when preloading the video
+            MaxDegreeOfParallelism = bufferSize
+        };
 
-                StartedToProcessProcessedFrames++;
-
-                yield return res;
-            }
-        }
-
-        public static async Task ConvertPictureAsync(string path, Stream output)
+        _ = DynamicParallel.ForEachAsync(file.Video.GetFramesEnumerable(), parallelOptions, async (framePos, cancellationToken) =>
         {
-            var image = await Image.LoadAsync(path);
-
-            var targetSize = new Size(1080, 1920) / 10;
-
-            var resize = AspectRatioResizeCalculator(image.Size, targetSize);
-
-            resize.Width *= 2;
+            var image = framePos.Frame;
 
             image.Mutate((ob) =>
             {
-                ob.Resize(resize);
+                ob.Resize(calculatedSize);
             });
 
-            var converter = new BitmapToAscii()
+            var converter = converters.Get();
+
+            await converter.Convert(image);
+
+            var channel = channels[framePos.Position].Writer;
+
+            channel.TryWrite(converter);
+
+            channel.Complete();
+        });
+
+        for (int i = 0; i < channels.Count; i++)
+        {
+            // Paralelization limit to avoid pre-loading the whole video at once
+            // we only cache n seconds
+            var preRenderFrameObjetive = i + bufferSize;
+
+            // we compare the started process to the objetive
+            int objetiveDifference = preRenderFrameObjetive - StartedToProcessProcessedFrames;
+
+            // if the objetice is acomplished we still keep at least 1 thread running
+            if (objetiveDifference < 1)
             {
-                FrameBuffer = new MemoryStream(0),
+                objetiveDifference = 0;
+            }
+
+            parallelOptions.MaxDegreeOfParallelism = objetiveDifference;
+
+            var channel = channels[i];
+
+            await foreach (var converter in channel.Reader.ReadAllAsync())
+            {
+                await render.Draw(converter.FrameBuffer);
+
+                // Return cached object
+                converters.Return(converter);
+            }
+        }
+    }
+
+    public static int StartedToProcessProcessedFrames = 0;
+
+    public static Image<Bgr24> ToBitmap(this ImageData imageData)
+    {
+        return Image.LoadPixelData<Bgr24>(imageData.Data, imageData.ImageSize.Width, imageData.ImageSize.Height);
+    }
+
+    private static IEnumerable<FramePosition> GetFramesEnumerable(this VideoStream video)
+    {
+        while (video.TryGetNextFrame(out var frame))
+        {
+            var res = new FramePosition()
+            {
+                Frame = frame.ToBitmap(),
+                Position = StartedToProcessProcessedFrames,
             };
 
-            var img = image.CloneAs<Bgr24>();
+            StartedToProcessProcessedFrames++;
 
-            await converter.Convert(img);
-
-            await converter.FrameBuffer.CopyToAsync(output);
+            yield return res;
         }
+    }
 
-        public class FramePosition
+    public static async Task ConvertPictureAsync(string path, Stream output)
+    {
+        var image = await Image.LoadAsync(path);
+
+        var targetSize = new Size(1080, 1920) / 10;
+
+        var resize = AspectRatioResizeCalculator(image.Size, targetSize);
+
+        resize.Width *= 2;
+
+        image.Mutate((ob) =>
         {
-            public int Position { get; set; }
-            public Image<Bgr24> Frame { get; set; }
-        }
+            ob.Resize(resize);
+        });
 
-        public static Size AspectRatioResizeCalculator(Size origin, Size target)
+        var converter = new BitmapToAscii()
         {
-            var width = origin.Width;
-            var height = origin.Height;
+            FrameBuffer = new MemoryStream(0),
+        };
 
-            decimal coefficientFitWidth = CoefficientChange(width, target.Width);
-            decimal coefficientFitHeight = CoefficientChange(height, target.Height);
+        var img = image.CloneAs<Bgr24>();
 
-            decimal coefficient = coefficientFitWidth < coefficientFitHeight ? coefficientFitWidth : coefficientFitHeight;
+        await converter.Convert(img);
 
-            // Avoid Upscaling
-            if (coefficient > 1)
-            {
-                return origin;
-            }
+        await converter.FrameBuffer.CopyToAsync(output);
+    }
 
-            width = decimal.ToInt32(coefficient * origin.Width);
-            height = decimal.ToInt32(coefficient * origin.Height);
+    public class FramePosition
+    {
+        public int Position { get; set; }
+        public Image<Bgr24> Frame { get; set; }
+    }
 
-            // Images must have at least 1 px on both sides
-            // This fixes it
-            coefficient = 0;
-            if (width < 1)
-            {
-                coefficient = CoefficientChange(width, 1);
-            }
-            else if (height < 1)
-            {
-                coefficient = CoefficientChange(height, 1);
-            }
+    public static Size AspectRatioResizeCalculator(Size origin, Size target)
+    {
+        var width = origin.Width;
+        var height = origin.Height;
 
-            if (coefficient != 0)
-            {
-                height = decimal.ToInt32(coefficient * origin.Width);
-                width = decimal.ToInt32(coefficient * origin.Height);
-            }
+        decimal coefficientFitWidth = CoefficientChange(width, target.Width);
+        decimal coefficientFitHeight = CoefficientChange(height, target.Height);
 
-            return new Size
-            {
-                Width = width,
-                Height = height,
-            };
-        }
+        decimal coefficient = coefficientFitWidth < coefficientFitHeight ? coefficientFitWidth : coefficientFitHeight;
 
-        private static decimal CoefficientChange(int valorInicial, int valorFinal)
+        // Avoid Upscaling
+        if (coefficient > 1)
         {
-            return 100M / valorInicial * valorFinal / 100;
+            return origin;
         }
+
+        width = decimal.ToInt32(coefficient * origin.Width);
+        height = decimal.ToInt32(coefficient * origin.Height);
+
+        // Images must have at least 1 px on both sides
+        // This fixes it
+        coefficient = 0;
+        if (width < 1)
+        {
+            coefficient = CoefficientChange(width, 1);
+        }
+        else if (height < 1)
+        {
+            coefficient = CoefficientChange(height, 1);
+        }
+
+        if (coefficient != 0)
+        {
+            height = decimal.ToInt32(coefficient * origin.Width);
+            width = decimal.ToInt32(coefficient * origin.Height);
+        }
+
+        return new Size
+        {
+            Width = width,
+            Height = height,
+        };
+    }
+
+    private static decimal CoefficientChange(int valorInicial, int valorFinal)
+    {
+        return 100M / valorInicial * valorFinal / 100;
     }
 }
