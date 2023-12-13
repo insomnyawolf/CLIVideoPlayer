@@ -2,6 +2,7 @@
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -20,6 +21,7 @@ public class BitmapToAsciiPooledObjectPolicy : PooledObjectPolicy<BitmapToAscii>
         return new BitmapToAscii()
         {
             FrameBuffer = new MemoryStream(CacheDefaultCapacity),
+            //ColorCache = new Dictionary<Vector4, byte[]>(),
         };
     }
 
@@ -48,7 +50,6 @@ public class ConversionValue
 
 public class BitmapToAscii
 {
-    private static readonly ConcurrentDictionary<Vector4, byte[]> ColorCache = new();
 
     public static string NewLine = "\n";
     public static byte[] NewLineBytes = Encoding.UTF8.GetBytes(NewLine);
@@ -56,14 +57,15 @@ public class BitmapToAscii
     public static string Pixel = " ";
     public static byte[] PixelBytes = Encoding.UTF8.GetBytes(Pixel);
 
+    public MemoryStream FrameBuffer { get; init; }
+    public static Dictionary<Vector4, byte[]> ColorCache { get; } = new Dictionary<Vector4, byte[]>();
+
     public static byte[] GetBytes(Vector4 color)
     {
         var colorRaw = new Rgba32();
         colorRaw.FromVector4(color);
         return Encoding.UTF8.GetBytes($"\x1b[48;2;{colorRaw.R};{colorRaw.G};{colorRaw.B}m{Pixel}");
     }
-
-    public MemoryStream FrameBuffer { get; set; }
 
     public void Convert(Image<Bgr24> image)
     {
@@ -99,10 +101,17 @@ public class BitmapToAscii
             else
             {
                 // Cache Colors
-                var colorBytes = ColorCache.GetOrAdd(key: color, valueFactory: GetBytes);
+                lock (ColorCache)
+                {
+                    ref var colorBytes = ref CollectionsMarshal.GetValueRefOrAddDefault(ColorCache, color, out var exists);
+                    if (!exists)
+                    {
+                        colorBytes = GetBytes(color);
+                    }
 
-                // Append the color change and the pixel
-                FrameBuffer.WriteAsync(colorBytes);
+                    // Append the color change and the pixel
+                    FrameBuffer.WriteAsync(colorBytes);
+                }
             }
 
             currentX++;
