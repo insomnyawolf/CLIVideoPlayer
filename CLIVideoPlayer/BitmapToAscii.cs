@@ -2,7 +2,6 @@
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -16,11 +15,7 @@ public class BitmapToAsciiPooledObjectPolicy : PooledObjectPolicy<BitmapToAscii>
     public int CacheDefaultCapacity { get; set; }
     public override BitmapToAscii Create()
     {
-        return new BitmapToAscii()
-        {
-            FrameBuffer = new MemoryStream(CacheDefaultCapacity),
-            //ColorCache = new Dictionary<Vector4, byte[]>(),
-        };
+        return new BitmapToAscii(new MemoryStream(CacheDefaultCapacity));
     }
 
     public override bool Return(BitmapToAscii obj)
@@ -48,38 +43,45 @@ public class ConversionValue
 
 public class BitmapToAscii
 {
-    public static string NewLine = "\n";
-    public static byte[] NewLineBytes = Encoding.UTF8.GetBytes(NewLine);
+    public const string NewLine = "\n";
+    public static readonly byte[] NewLineBytes = Encoding.UTF8.GetBytes(NewLine);
 
-    public static string Pixel = " ";
-    public static byte[] PixelBytes = Encoding.UTF8.GetBytes(Pixel);
+    public const string Pixel = " ";
+    public static readonly byte[] PixelBytes = Encoding.UTF8.GetBytes(Pixel);
 
     // "\x1b[48;2;{color.R};{color.G};{color.B}m{Pixel}"
-    public static string ColorChange = "\x1b[48;2;";
-    public static byte[] ColorChangeBytes = Encoding.UTF8.GetBytes(ColorChange);
+    public const string ColorChange = "\x1b[48;2;";
+    public static readonly byte[] ColorChangeBytes = Encoding.UTF8.GetBytes(ColorChange);
 
-    public MemoryStream FrameBuffer { get; init; }
-    public static Dictionary<Bgr24, byte[]> ColorCache { get; } = new();
+    public const string Semicolon = ";";
+    public static readonly byte[] SemicolonBytes = Encoding.UTF8.GetBytes(Semicolon);
 
-
-    private static readonly int BufferLengthRequiered;
-    static BitmapToAscii()
-    {
-        var WorstCaseScenario = GetBytesBase(new Bgr24(255, 255, 255));
-        BufferLengthRequiered = WorstCaseScenario.Length;
-    }
-
-    public static byte[] GetBytesBase(Bgr24 color)
-    {
-        return Encoding.UTF8.GetBytes($"{color.R};{color.G};{color.B}m");
-    }
+    public const string CharM = "m";
+    public static readonly byte[] CharMBytes = Encoding.UTF8.GetBytes(CharM);
 
     [UnsafeAccessor(kind: UnsafeAccessorKind.Field, Name = "frames")]
     public static extern ref ImageFrameCollection<Bgr24> GetFrames(Image<Bgr24> image);
 
-    public unsafe void Convert(Image<Bgr24> image)
+    private static readonly byte[][] NumberCache = new byte[256][];
+    static BitmapToAscii()
     {
-        Span<byte> buffer = stackalloc byte[BufferLengthRequiered];
+        for (var i = 0; i < NumberCache.Length; i++)
+        {
+            NumberCache[i] = Encoding.UTF8.GetBytes(i + "");
+        }
+    }
+    public MemoryStream FrameBuffer { get; init; }
+    public StreamWriter StreamWriter { get; init; }
+
+    public BitmapToAscii(MemoryStream FrameBuffer)
+    {
+        this.FrameBuffer = FrameBuffer;
+        this.StreamWriter = new StreamWriter(stream: FrameBuffer, encoding: null, bufferSize: 128, leaveOpen: true);
+    }
+
+    public void Convert(Image<Bgr24> image)
+    {
+        ref var numberCacheRef = ref MemoryMarshal.GetArrayDataReference(NumberCache);
 
         Bgr24? lastColor = null;
 
@@ -103,16 +105,26 @@ public class BitmapToAscii
                 {
                     lastColor = color;
 
+                    // Add the color Change
                     FrameBuffer.Write(ColorChangeBytes);
 
-                    var length = Encoding.UTF8.GetBytes($"{color.R};{color.G};{color.B}m", buffer);
+                    ref var R = ref Unsafe.Add(ref numberCacheRef, color.R);
+                    FrameBuffer.Write(R);
 
-                    var colorBytes = buffer.Slice(0, length);
+                    FrameBuffer.Write(SemicolonBytes);
 
-                    // Append the color change and the pixel
-                    FrameBuffer.Write(colorBytes);
+                    ref var G = ref Unsafe.Add(ref numberCacheRef, color.G);
+                    FrameBuffer.Write(G);
+
+                    FrameBuffer.Write(SemicolonBytes);
+
+                    ref var B = ref Unsafe.Add(ref numberCacheRef, color.B);
+                    FrameBuffer.Write(B);
+
+                    FrameBuffer.Write(CharMBytes);
                 }
 
+                // Add the pixel
                 FrameBuffer.Write(PixelBytes);
 
                 position = ref Unsafe.Add(ref position, 1);
@@ -123,5 +135,15 @@ public class BitmapToAscii
         }
 
         FrameBuffer.Position = 0;
+    }
+}
+
+public static class Extensions
+{
+    public static string ConvertToBase64(this MemoryStream stream)
+    {
+        byte[] bytes = stream.ToArray();
+        string base64 = Convert.ToBase64String(bytes);
+        return base64;
     }
 }

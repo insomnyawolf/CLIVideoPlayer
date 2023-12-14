@@ -93,7 +93,7 @@ public static class Program
             MaxParalelismTarget = bufferSize,
         };
 
-        var pending = Task.Run(async() =>
+        var pending = Task.Run(async () =>
         {
             // Wait for frames as soon as possible
             for (int i = 0; i < channels.Count; i++)
@@ -259,10 +259,7 @@ public static class Program
             ob.Resize(resize);
         });
 
-        var converter = new BitmapToAscii()
-        {
-            FrameBuffer = new MemoryStream(0),
-        };
+        var converter = new BitmapToAscii(new MemoryStream(0));
 
         var img = image.CloneAs<Bgr24>();
 
