@@ -8,6 +8,8 @@ Update, i keep trying to optimize it once and again and actually it's probably f
 
 I don't think i can top up this amount of optimization again tho i even surprised myself this time
 
+## 
+
 ## How to use
 
 Compile and drag any video file into the executable

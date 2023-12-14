@@ -30,12 +30,8 @@ public static class Program
 
         foreach (var file in args)
         {
-            //Render.StdOut = new FileStream(file + ".txt", FileMode.CreateNew, FileAccess.Write);
             await PlayFile(file);
-            //Render.StdOut.Flush();
         }
-
-        //ConsoleHelper.RestoreConsole();
     }
 
     private static async Task PlayFile(string filePath)
@@ -50,7 +46,7 @@ public static class Program
         var framerate = file.Video.Info.AvgFrameRate;
 
         // edit this if the image is too small or too big and makes earthquakes
-        const int safeArea = 5;
+        const int safeArea = 0;
 
         var consoleSize = new Size(Console.WindowWidth - safeArea, Console.WindowHeight - safeArea);
 

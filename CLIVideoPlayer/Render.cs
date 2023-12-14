@@ -25,10 +25,10 @@ public class Render
     public Stream StdOut { get; set; }
 
 
-    public static byte[] CursorReset = Encoding.UTF8.GetBytes("\x1b[99999;99999");
-    public static byte[] CursorSavePos = Encoding.UTF8.GetBytes("\x1b[s");
-    public static byte[] CursorLoadPos = Encoding.UTF8.GetBytes("\x1b[u");
-    public static byte[] ClearScreen = Encoding.UTF8.GetBytes("\x1b[2J");
+    public static readonly byte[] CursorReset = Encoding.UTF8.GetBytes("\x1b[99999;99999");
+    public static readonly byte[] CursorSavePos = Encoding.UTF8.GetBytes("\x1b[s");
+    public static readonly byte[] CursorLoadPos = Encoding.UTF8.GetBytes("\x1b[u");
+    public static readonly byte[] ClearScreen = Encoding.UTF8.GetBytes("\x1b[2J");
 
     public Render()
     {
@@ -44,7 +44,7 @@ public class Render
 
         if (delayNeeded > TimeSpan.Zero)
         {
-            await Task.Delay(delayNeeded);
+            //await Task.Delay(delayNeeded);
         }
 
         // fps conter at the title bar
