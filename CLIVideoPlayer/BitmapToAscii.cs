@@ -53,12 +53,16 @@ public class BitmapToAscii
     public static string Pixel = " ";
     public static byte[] PixelBytes = Encoding.UTF8.GetBytes(Pixel);
 
+    // "\x1b[48;2;{color.R};{color.G};{color.B}m{Pixel}"
+    public static string ColorChange = "\x1b[48;2;";
+    public static byte[] ColorChangeBytes = Encoding.UTF8.GetBytes(ColorChange);
+
     public MemoryStream FrameBuffer { get; init; }
     public static Dictionary<Bgr24, byte[]> ColorCache { get; } = new();
 
     public static byte[] GetBytes(Bgr24 color)
     {
-        return Encoding.UTF8.GetBytes($"\x1b[48;2;{color.R};{color.G};{color.B}m{Pixel}");
+        return Encoding.UTF8.GetBytes($"{color.R};{color.G};{color.B}m");
     }
 
     [UnsafeAccessor(kind: UnsafeAccessorKind.Field, Name = "frames")]
@@ -72,7 +76,6 @@ public class BitmapToAscii
         var rf = frames.RootFrame;
         var pixelBuffer = rf.PixelBuffer;
 
-
         // Loop through each pixel in the bitmap
         for (int y = 0; y < image.Height; y++)
         {
@@ -85,27 +88,19 @@ public class BitmapToAscii
             {
                 var color = position;
 
-                if (color == lastColor)
-                {
-                    // No Color Update, It's the same
-                    FrameBuffer.Write(PixelBytes);
-                }
-                else
+                if (color != lastColor)
                 {
                     lastColor = color;
-                    // Cache Colors
-                    lock (ColorCache)
-                    {
-                        ref var colorBytes = ref CollectionsMarshal.GetValueRefOrAddDefault(ColorCache, color, out var exists);
-                        if (!exists)
-                        {
-                            colorBytes = GetBytes(color);
-                        }
 
-                        // Append the color change and the pixel
-                        FrameBuffer.WriteAsync(colorBytes);
-                    }
+                    FrameBuffer.WriteAsync(ColorChangeBytes);
+
+                    var colorBytes = GetBytes(color);
+
+                    // Append the color change and the pixel
+                    FrameBuffer.WriteAsync(colorBytes);
                 }
+
+                FrameBuffer.Write(PixelBytes);
 
                 position = ref Unsafe.Add(ref position, 1);
             }
