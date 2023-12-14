@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.ObjectPool;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -60,7 +61,15 @@ public class BitmapToAscii
     public MemoryStream FrameBuffer { get; init; }
     public static Dictionary<Bgr24, byte[]> ColorCache { get; } = new();
 
-    public static byte[] GetBytes(Bgr24 color)
+
+    private static readonly int BufferLengthRequiered;
+    static BitmapToAscii()
+    {
+        var WorstCaseScenario = GetBytesBase(new Bgr24(255, 255, 255));
+        BufferLengthRequiered = WorstCaseScenario.Length;
+    }
+
+    public static byte[] GetBytesBase(Bgr24 color)
     {
         return Encoding.UTF8.GetBytes($"{color.R};{color.G};{color.B}m");
     }
@@ -70,6 +79,8 @@ public class BitmapToAscii
 
     public unsafe void Convert(Image<Bgr24> image)
     {
+        Span<byte> buffer = stackalloc byte[BufferLengthRequiered];
+
         Bgr24? lastColor = null;
 
         var frames = GetFrames(image);
@@ -92,12 +103,14 @@ public class BitmapToAscii
                 {
                     lastColor = color;
 
-                    FrameBuffer.WriteAsync(ColorChangeBytes);
+                    FrameBuffer.Write(ColorChangeBytes);
 
-                    var colorBytes = GetBytes(color);
+                    var length = Encoding.UTF8.GetBytes($"{color.R};{color.G};{color.B}m", buffer);
+
+                    var colorBytes = buffer.Slice(0, length);
 
                     // Append the color change and the pixel
-                    FrameBuffer.WriteAsync(colorBytes);
+                    FrameBuffer.Write(colorBytes);
                 }
 
                 FrameBuffer.Write(PixelBytes);
