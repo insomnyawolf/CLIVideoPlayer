@@ -1,14 +1,11 @@
 ﻿using Microsoft.Extensions.ObjectPool;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
-using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
-using static System.Formats.Asn1.AsnWriter;
 
 namespace CLIVideoPlayer;
 
@@ -50,7 +47,6 @@ public class ConversionValue
 
 public class BitmapToAscii
 {
-
     public static string NewLine = "\n";
     public static byte[] NewLineBytes = Encoding.UTF8.GetBytes(NewLine);
 
@@ -58,63 +54,64 @@ public class BitmapToAscii
     public static byte[] PixelBytes = Encoding.UTF8.GetBytes(Pixel);
 
     public MemoryStream FrameBuffer { get; init; }
-    public static Dictionary<Vector4, byte[]> ColorCache { get; } = new Dictionary<Vector4, byte[]>();
+    public static Dictionary<Bgr24, byte[]> ColorCache { get; } = new();
 
-    public static byte[] GetBytes(Vector4 color)
+    public static byte[] GetBytes(Bgr24 color)
     {
-        var colorRaw = new Rgba32();
-        colorRaw.FromVector4(color);
-        return Encoding.UTF8.GetBytes($"\x1b[48;2;{colorRaw.R};{colorRaw.G};{colorRaw.B}m{Pixel}");
+        return Encoding.UTF8.GetBytes($"\x1b[48;2;{color.R};{color.G};{color.B}m{Pixel}");
     }
 
-    public void Convert(Image<Bgr24> image)
+    [UnsafeAccessor(kind: UnsafeAccessorKind.Field, Name = "frames")]
+    public static extern ref ImageFrameCollection<Bgr24> GetFrames(Image<Bgr24> image);
+
+    public unsafe void Convert(Image<Bgr24> image)
     {
-        Vector4? lastColor = null;
+        Bgr24? lastColor = null;
 
-        var total = image.Height * image.Width;
+        var frames = GetFrames(image);
+        var rf = frames.RootFrame;
+        var pixelBuffer = rf.PixelBuffer;
 
-        var currentX = 0;
-
-        image.DangerousTryGetSinglePixelMemory(out var memory);
-
-        var span = memory.Span;
 
         // Loop through each pixel in the bitmap
-        for (int i = 0; i < total; i++)
+        for (int y = 0; y < image.Height; y++)
         {
-            if (currentX == image.Width)
-            {
-                currentX = 0;
-                // Append new line because it doesn't look right otherwise
-                FrameBuffer.Write(NewLineBytes);
-            }
+            var row = pixelBuffer.DangerousGetRowSpan(y);
 
-            // Get the color of the current pixel
-            // And convert it to a vector
-            var color = span[i].ToVector4();
+            ref var position = ref MemoryMarshal.GetReference(row);
+            ref var end = ref Unsafe.Add(ref position, row.Length);
 
-            if (color == lastColor)
+            while (Unsafe.IsAddressLessThan(ref position, ref end))
             {
-                // No Color Update, It's the same
-                FrameBuffer.Write(PixelBytes);
-            }
-            else
-            {
-                // Cache Colors
-                lock (ColorCache)
+                var color = position;
+
+                if (color == lastColor)
                 {
-                    ref var colorBytes = ref CollectionsMarshal.GetValueRefOrAddDefault(ColorCache, color, out var exists);
-                    if (!exists)
-                    {
-                        colorBytes = GetBytes(color);
-                    }
-
-                    // Append the color change and the pixel
-                    FrameBuffer.WriteAsync(colorBytes);
+                    // No Color Update, It's the same
+                    FrameBuffer.Write(PixelBytes);
                 }
+                else
+                {
+                    lastColor = color;
+                    // Cache Colors
+                    lock (ColorCache)
+                    {
+                        ref var colorBytes = ref CollectionsMarshal.GetValueRefOrAddDefault(ColorCache, color, out var exists);
+                        if (!exists)
+                        {
+                            colorBytes = GetBytes(color);
+                        }
+
+                        // Append the color change and the pixel
+                        FrameBuffer.WriteAsync(colorBytes);
+                    }
+                }
+
+                position = ref Unsafe.Add(ref position, 1);
             }
 
-            currentX++;
+            // Append new line because it doesn't look right otherwise
+            FrameBuffer.Write(NewLineBytes);
         }
 
         FrameBuffer.Position = 0;

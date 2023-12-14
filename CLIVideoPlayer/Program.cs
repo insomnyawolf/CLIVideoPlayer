@@ -90,7 +90,7 @@ public static class Program
 #if DEBUG && !true
             MaxDegreeOfParallelism = 1,
 #endif
-            MaxParalelismTarget = 24,
+            MaxParalelismTarget = bufferSize,
         };
 
         var pending = Task.Run(async() =>

@@ -14,7 +14,6 @@ Compile and drag any video file into the executable
 
 ## Done
 
-* SIMD
 * Fix playback speed
 * More Intermediate Grey Tones (it has colors now)
 * Multithread Decoding => Oh man, that's harder than it sounds
