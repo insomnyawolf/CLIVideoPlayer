@@ -16,8 +16,10 @@ public static class Program
 {
     private static async Task Main(string[] args)
     {
-        var exeLocation = AppDomain.CurrentDomain.BaseDirectory;
-        FFMediaToolkit.FFmpegLoader.FFmpegPath = Path.Combine(Path.GetDirectoryName(exeLocation), "ffmpeg");
+        //var exeLocation = AppDomain.CurrentDomain.BaseDirectory;
+        //FFMediaToolkit.FFmpegLoader.FFmpegPath = Path.Combine(Path.GetDirectoryName(exeLocation), "ffmpeg");
+        FFMediaToolkit.FFmpegLoader.LoadFFmpeg();
+        FFMediaToolkit.FFmpegLoader.SetupLogging();
 
         //foreach (var file in args)
         //{
@@ -36,7 +38,7 @@ public static class Program
 
     private static async Task PlayFile(string filePath)
     {
-        var file = MediaFile.Open(filePath);
+        var file = MediaFile.Open(filePath, new MediaOptions());
 
         if (file.Video.Info.IsVariableFrameRate)
         {
@@ -46,7 +48,7 @@ public static class Program
         var framerate = file.Video.Info.AvgFrameRate;
 
         // edit this if the image is too small or too big and makes earthquakes
-        const int safeArea = 0;
+        const int safeArea = 1;
 
         var consoleSize = new Size(Console.WindowWidth - safeArea, Console.WindowHeight - safeArea);
 

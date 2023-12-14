@@ -44,7 +44,7 @@ public class Render
 
         if (delayNeeded > TimeSpan.Zero)
         {
-            //await Task.Delay(delayNeeded);
+            await Task.Delay(delayNeeded);
         }
 
         // fps conter at the title bar

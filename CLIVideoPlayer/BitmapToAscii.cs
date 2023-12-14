@@ -43,21 +43,16 @@ public class ConversionValue
 
 public class BitmapToAscii
 {
-    public const string NewLine = "\n";
-    public static readonly byte[] NewLineBytes = Encoding.UTF8.GetBytes(NewLine);
+    public static readonly byte[] NewLine = Encoding.UTF8.GetBytes("\n");
 
-    public const string Pixel = " ";
-    public static readonly byte[] PixelBytes = Encoding.UTF8.GetBytes(Pixel);
+    public static readonly byte[] Pixel = Encoding.UTF8.GetBytes(" ");
 
     // "\x1b[48;2;{color.R};{color.G};{color.B}m{Pixel}"
-    public const string ColorChange = "\x1b[48;2;";
-    public static readonly byte[] ColorChangeBytes = Encoding.UTF8.GetBytes(ColorChange);
+    public static readonly byte[] ColorChange = Encoding.UTF8.GetBytes("\x1b[48;2;");
 
-    public const string Semicolon = ";";
-    public static readonly byte[] SemicolonBytes = Encoding.UTF8.GetBytes(Semicolon);
+    public static readonly byte[] Semicolon = Encoding.UTF8.GetBytes(";");
 
-    public const string CharM = "m";
-    public static readonly byte[] CharMBytes = Encoding.UTF8.GetBytes(CharM);
+    public static readonly byte[] CharM = Encoding.UTF8.GetBytes("m");
 
     [UnsafeAccessor(kind: UnsafeAccessorKind.Field, Name = "frames")]
     public static extern ref ImageFrameCollection<Bgr24> GetFrames(Image<Bgr24> image);
@@ -106,32 +101,32 @@ public class BitmapToAscii
                     lastColor = color;
 
                     // Add the color Change
-                    FrameBuffer.Write(ColorChangeBytes);
+                    FrameBuffer.Write(ColorChange);
 
                     ref var R = ref Unsafe.Add(ref numberCacheRef, color.R);
                     FrameBuffer.Write(R);
 
-                    FrameBuffer.Write(SemicolonBytes);
+                    FrameBuffer.Write(Semicolon);
 
                     ref var G = ref Unsafe.Add(ref numberCacheRef, color.G);
                     FrameBuffer.Write(G);
 
-                    FrameBuffer.Write(SemicolonBytes);
+                    FrameBuffer.Write(Semicolon);
 
                     ref var B = ref Unsafe.Add(ref numberCacheRef, color.B);
                     FrameBuffer.Write(B);
 
-                    FrameBuffer.Write(CharMBytes);
+                    FrameBuffer.Write(CharM);
                 }
 
                 // Add the pixel
-                FrameBuffer.Write(PixelBytes);
+                FrameBuffer.Write(Pixel);
 
                 position = ref Unsafe.Add(ref position, 1);
             }
 
             // Append new line because it doesn't look right otherwise
-            FrameBuffer.Write(NewLineBytes);
+            FrameBuffer.Write(NewLine);
         }
 
         FrameBuffer.Position = 0;
