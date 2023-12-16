@@ -1,120 +1,144 @@
-﻿using SixLabors.ImageSharp.PixelFormats;
+﻿using Microsoft.Extensions.ObjectPool;
 using SixLabors.ImageSharp;
-using System.IO;
-using System.Text;
-using System.Threading.Tasks;
+using SixLabors.ImageSharp.PixelFormats;
 using System;
-using Microsoft.Extensions.ObjectPool;
+using System.IO;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Text;
 
-namespace CLIVideoPlayer
+namespace CLIVideoPlayer;
+
+// Yay, no reallocations \:D/
+public class BitmapToAsciiPooledObjectPolicy : PooledObjectPolicy<BitmapToAscii>
 {
-    // Yay, no reallocations \:D/
-    public class BitmapToAsciiPooledObjectPolicy : PooledObjectPolicy<BitmapToAscii>
+    public int CacheDefaultCapacity { get; set; }
+    public override BitmapToAscii Create()
     {
-        public int CacheDefaultCapacity { get; set; }
-        public override BitmapToAscii Create()
-        {
-            return new BitmapToAscii() 
-            {
-                FrameBuffer = new MemoryStream(CacheDefaultCapacity),
-            };
-        }
-
-        public override bool Return(BitmapToAscii obj)
-        {
-            // Reset the buffer cursor so we can reuse it as if it were new without allocating new memory
-
-            var buffer = obj.FrameBuffer;
-
-            buffer.SetLength(0);
-
-            return true;
-        }
+        return new BitmapToAscii(new MemoryStream(CacheDefaultCapacity));
     }
 
-    public class ConversionValue
+    public override bool Return(BitmapToAscii obj)
     {
-        public int Threshold { get; }
-        public byte[] Value { get; }
-        public ConversionValue(int Threshold, string Value)
+        // Reset the buffer cursor so we can reuse it as if it were new without allocating new memory
+
+        var buffer = obj.FrameBuffer;
+
+        buffer.SetLength(0);
+
+        return true;
+    }
+}
+
+public class ConversionValue
+{
+    public int Threshold { get; }
+    public byte[] Value { get; }
+    public ConversionValue(int Threshold, string Value)
+    {
+        this.Threshold = Threshold;
+        this.Value = Encoding.UTF8.GetBytes(Value);
+    }
+}
+
+public class BitmapToAscii
+{
+    public static readonly byte[] NewLine = Encoding.UTF8.GetBytes("\n");
+
+    public static readonly byte[] Pixel = Encoding.UTF8.GetBytes(" ");
+
+    // "\x1b[48;2;{color.R};{color.G};{color.B}m{Pixel}"
+    public static readonly byte[] ColorChange = Encoding.UTF8.GetBytes("\x1b[48;2;");
+
+    public static readonly byte[] Semicolon = Encoding.UTF8.GetBytes(";");
+
+    public static readonly byte[] CharM = Encoding.UTF8.GetBytes("m");
+
+    [UnsafeAccessor(kind: UnsafeAccessorKind.Field, Name = "frames")]
+    public static extern ref ImageFrameCollection<Bgr24> GetFrames(Image<Bgr24> image);
+
+    private static readonly byte[][] NumberCache = new byte[256][];
+    static BitmapToAscii()
+    {
+        for (var i = 0; i < NumberCache.Length; i++)
         {
-            this.Threshold = Threshold;
-            this.Value = Encoding.UTF8.GetBytes(Value);
+            NumberCache[i] = Encoding.UTF8.GetBytes(i + "");
         }
     }
+    public MemoryStream FrameBuffer { get; init; }
+    public StreamWriter StreamWriter { get; init; }
 
-    public class BitmapToAscii
+    public BitmapToAscii(MemoryStream FrameBuffer)
     {
-        public Stream FrameBuffer { get; set; }
+        this.FrameBuffer = FrameBuffer;
+        this.StreamWriter = new StreamWriter(stream: FrameBuffer, encoding: null, bufferSize: 128, leaveOpen: true);
+    }
 
-        private static readonly ConversionValue[] ConversionTable = new[]
+    public void Convert(Image<Bgr24> image)
+    {
+        ref var numberCacheRef = ref MemoryMarshal.GetArrayDataReference(NumberCache);
+
+        Bgr24? lastColor = null;
+
+        var frames = GetFrames(image);
+        var rf = frames.RootFrame;
+        var pixelBuffer = rf.PixelBuffer;
+
+        // Loop through each pixel in the bitmap
+        for (int y = 0; y < image.Height; y++)
         {
-            new ConversionValue(230, "@"),
-            new ConversionValue(200, "#"),
-            new ConversionValue(180, "8"),
-            new ConversionValue(160, "&"),
-            new ConversionValue(130, "O"),
-            new ConversionValue(100, ":"),
-            new ConversionValue(70, "*"),
-            new ConversionValue(50, "."),
-            new ConversionValue(-1, " "),
-        };
+            var row = pixelBuffer.DangerousGetRowSpan(y);
 
-        public static byte[] NewLine = Encoding.UTF8.GetBytes("\n");
+            ref var position = ref MemoryMarshal.GetReference(row);
+            ref var end = ref Unsafe.Add(ref position, row.Length);
 
-        private static byte[] GetGrayCharacter(int brightnessValue)
-        {
-            // This is slower than if/else chaining but it's a bit more clean
-            // Maybe we could try custom source generators
-            for (int Index = 0; Index < ConversionTable.Length; Index++)
+            while (Unsafe.IsAddressLessThan(ref position, ref end))
             {
-                var item = ConversionTable[Index];
+                var color = position;
 
-                if (brightnessValue > item.Threshold)
+                if (color != lastColor)
                 {
-                    return item.Value;
-                }
-            }
+                    lastColor = color;
 
-            throw new Exception($"GetGrayShade for value {brightnessValue}");
-        }
+                    // Add the color Change
+                    FrameBuffer.Write(ColorChange);
 
-        private static int GetGrayShadeWeighted(Bgr24 col)
-        {
-            // To convert to grayscale, the easiest method is to add
-            // the R+G+B colors and divide by three to get the gray
-            // scaled color.
-            return ((col.R * 30) + (col.G * 59) + (col.B * 11)) / 100;
-        }
+                    ref var R = ref Unsafe.Add(ref numberCacheRef, color.R);
+                    FrameBuffer.Write(R);
 
-        public async Task Convert(Image<Bgr24> image)
-        {
-            // Loop through each pixel in the bitmap
-            for (int y = 0; y < image.Height; y++)
-            {
-                for (int x = 0; x < image.Width; x++)
-                {
-                    // Get the color of the current pixel
-                    //col = bmp.GetPixel(x, y);
-                    var color = image[x, y];
+                    FrameBuffer.Write(Semicolon);
 
-                    // Get the value from the grayscale color,
-                    // parse to an int. Will be between 0-255.
-                    var shade = GetGrayShadeWeighted(color);
+                    ref var G = ref Unsafe.Add(ref numberCacheRef, color.G);
+                    FrameBuffer.Write(G);
 
-                    // Get the bytes that represent the value we found
-                    // in our cache list
-                    var bytes = GetGrayCharacter(shade);
+                    FrameBuffer.Write(Semicolon);
 
-                    // Append the bytes
-                    await FrameBuffer.WriteAsync(bytes);
+                    ref var B = ref Unsafe.Add(ref numberCacheRef, color.B);
+                    FrameBuffer.Write(B);
+
+                    FrameBuffer.Write(CharM);
                 }
 
-                // Append new line because it doesn't look right otherwise
-                await FrameBuffer.WriteAsync(NewLine);
+                // Add the pixel
+                FrameBuffer.Write(Pixel);
+
+                position = ref Unsafe.Add(ref position, 1);
             }
 
-            FrameBuffer.Position = 0;
+            // Append new line because it doesn't look right otherwise
+            FrameBuffer.Write(NewLine);
         }
+
+        FrameBuffer.Position = 0;
+    }
+}
+
+public static class Extensions
+{
+    public static string ConvertToBase64(this MemoryStream stream)
+    {
+        byte[] bytes = stream.ToArray();
+        string base64 = Convert.ToBase64String(bytes);
+        return base64;
     }
 }
