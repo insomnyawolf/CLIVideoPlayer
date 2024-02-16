@@ -7,6 +7,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CLIVideoPlayer", "CLIVideoP
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{3218F946-002C-4EA8-9C2A-CFC6D86CD251}"
 	ProjectSection(SolutionItems) = preProject
+		nuget.config = nuget.config
 		README.md = README.md
 	EndProjectSection
 EndProject

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace CLIVideoPlayer;
@@ -24,27 +23,25 @@ public class Render
     }
     public Stream StdOut { get; set; }
 
-    // By using ascii we improve the performance a lot, we can still represent every color but we only need to write half of the bytes
-    // Also since ascii has a fixed size, we can calculate the buffers and allocate them in the required size directly
-    public static readonly Encoding Encoding = Encoding.ASCII;
-    //public static readonly Encoding Encoding = Encoding.Unicode;
-    public static readonly byte[] CursorReset = Encoding.GetBytes("\x1b[99999;99999");
-    public static readonly byte[] CursorSavePos = Encoding.GetBytes("\x1b[s");
-    public static readonly byte[] CursorLoadPos = Encoding.GetBytes("\x1b[u");
-    public static readonly byte[] ClearScreen = Encoding.GetBytes("\x1b[2J");
+    public static readonly ReadOnlyMemory<byte> CursorReset = GlobalSettings.Encoding.GetBytes("\x1b[99999;99999");
+    public static readonly ReadOnlyMemory<byte> CursorSavePos = GlobalSettings.Encoding.GetBytes("\x1b[s");
+    public static readonly ReadOnlyMemory<byte> CursorLoadPos = GlobalSettings.Encoding.GetBytes("\x1b[u");
+    public static readonly ReadOnlyMemory<byte> ClearScreen = GlobalSettings.Encoding.GetBytes("\x1b[2J");
 
     public Render()
     {
-        //this.StdOut = Console.OpenStandardOutput();
-
+#if true && !true
+        this.StdOut = Console.OpenStandardOutput();
+#else
         // With this i can prove that the bottleneck is the windows console
         this.StdOut = Stream.Null;
+#endif
 
         //var handle = FastConsole.CreateOutputHandle();
         //var fs = new FileStream(handle, FileAccess.ReadWrite);
         //this.StdOut = fs;
 
-        StdOut.Write(CursorSavePos);
+        StdOut.Write(CursorSavePos.Span);
         StdOut.Flush();
     }
 
@@ -68,10 +65,12 @@ public class Render
 
         Watch.Restart();
 
-        //Console.SetCursorPosition(0, Console.CursorTop);
+#warning test properly
+        //await StdOut.WriteAsync(CursorLoadPos);
+        //await FrameBuffer.CopyToAsync(StdOut);
 
-        await StdOut.WriteAsync(CursorLoadPos);
-
-        await FrameBuffer.CopyToAsync(StdOut);
+        // // This Destroys performance (?)
+        StdOut.Write(CursorLoadPos.Span);
+        FrameBuffer.CopyTo(StdOut);
     }
 }

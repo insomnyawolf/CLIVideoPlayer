@@ -9,11 +9,13 @@ using System.Threading;
 
 namespace CLIVideoPlayer;
 
+// Stripped down to just what we need
 [DebuggerDisplay("Current Count = {m_currentCount}")]
 public class CustomSemaphoreSlim : IDisposable
 {
     internal static bool IsSingleProcessor => Environment.ProcessorCount == 1;
-    internal static readonly int SpinCountforSpinBeforeWait = IsSingleProcessor ? 1 : 35;
+    //internal static readonly int SpinCountforSpinBeforeWait = IsSingleProcessor ? 1 : 35;
+    internal static readonly int SpinCountforSpinBeforeWait = IsSingleProcessor ? 1 : 12;
 
     // The semaphore count, initialized in the constructor to the initial value, every release call increments it
     // and every wait call decrements it as long as its value is positive otherwise the wait will block.
