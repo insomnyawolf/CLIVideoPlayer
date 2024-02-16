@@ -15,6 +15,8 @@ internal class ThrottledEnumerableSource
     {
         while (video.TryGetNextFrame(out var frame))
         {
+            options.WaitAvailable();
+
             var res = new FramePosition()
             {
                 Frame = ImageSarpHelpers.ToImage(frame),
@@ -23,7 +25,6 @@ internal class ThrottledEnumerableSource
 
             ProcessedFrames++;
 
-            options.WaitAvailable();
             yield return res;
         }
     }

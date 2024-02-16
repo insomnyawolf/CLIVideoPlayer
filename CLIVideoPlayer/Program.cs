@@ -31,8 +31,8 @@ public static class Program
 
         var framerate = file.Video.Info.AvgFrameRate;
 
-#if DEBUG //&& !true
-        framerate *= 1;
+#if DEBUG && !true
+        framerate *= 10;
 #endif
 
         var bufferSize = (int)framerate * 1;
@@ -58,6 +58,8 @@ public static class Program
 
         var estimatedFrameBufferSize = ImageHelpers.GetEstimatedBufferSize(calculatedSize);
 
+        var resizeProcessor = ImageSarpHelpers.GetResizeProcessor(videoSize, calculatedSize);
+
         var converters = BitmapToAsciiHelper.GetBitmapToAsciiPool(estimatedFrameBufferSize);
 
         var render = new Render()
@@ -65,6 +67,7 @@ public static class Program
             TargetFramerate = framerate,
         };
 
+        // Arrays starts at 0
         var totalFrames = file.Video.Info.NumberOfFrames.Value - 1;
 
         var channels = new Channel<BitmapToAscii>[totalFrames];
@@ -74,7 +77,7 @@ public static class Program
             channels[i] = Channel.CreateBounded<BitmapToAscii>(1);
         }
 
-        var pending = Task.Run(async () =>
+        var rendering = async () =>
         {
             // Wait for frames as soon as possible
             for (int i = 0; i < channels.Length; i++)
@@ -83,39 +86,38 @@ public static class Program
 
                 await render.Draw(converter.FrameBuffer);
 
-                throttleOptions.Release();
-
                 // Return cached object
                 converters.Return(converter);
+
+                throttleOptions.Release();
             }
+        };
 
-            Console.WriteLine("Finished");
-        });
-
-        var resizeProcessor = ImageSarpHelpers.GetResizeProcessor(videoSize, calculatedSize);
-
-        _ = OrderedParallel.ForEachAsync(throtledFrameSource, null, (framePos, ct) =>
+        var processing = async () =>
         {
-            var image = framePos.Frame;
-
-            image.Mutate((ob) =>
+            await OrderedParallel.ForEachAsync(throtledFrameSource, null, (framePos, ct) =>
             {
-                ob.ApplyProcessor(resizeProcessor);
+                var image = framePos.Frame;
+
+                image.Mutate((ob) =>
+                {
+                    ob.ApplyProcessor(resizeProcessor);
+                });
+
+                var converter = converters.Get();
+
+                converter.Convert(image);
+
+                var channel = channels[framePos.Position].Writer;
+
+                channel.TryWrite(converter);
+
+                channel.Complete();
+
+                return ValueTask.CompletedTask;
             });
+        };
 
-            var converter = converters.Get();
-
-            converter.Convert(image);
-
-            var channel = channels[framePos.Position].Writer;
-
-            channel.TryWrite(converter);
-
-            channel.Complete();
-
-            return ValueTask.CompletedTask;
-        });
-
-        await pending;
+        await Task.WhenAll(rendering(), processing());
     }
 }

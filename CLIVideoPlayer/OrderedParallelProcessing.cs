@@ -11,7 +11,7 @@ internal class OrderedParallel
     {
         // Oh wait wtf, it's so optimized that can run test on single core at 35fps on hd when unlimited D:
         // but if you add more threads it gets crazy with the memory allocations and has a unstable framerate when preloading the video
-#if DEBUG //&& !true
+#if DEBUG && !true
             MaxDegreeOfParallelism = 1,
 #endif
     };
