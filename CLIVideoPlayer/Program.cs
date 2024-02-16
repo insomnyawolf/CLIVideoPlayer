@@ -1,12 +1,15 @@
-﻿using FFMediaToolkit.Decoding;
+﻿using FasterConsole;
+using FFMediaToolkit.Decoding;
 using FFMediaToolkit.Graphics;
 using Microsoft.Extensions.ObjectPool;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Processing.Processors.Transforms;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
@@ -47,6 +50,8 @@ public static class Program
 
         var framerate = file.Video.Info.AvgFrameRate;
 
+        framerate *= 2;
+
         // edit this if the image is too small or too big and makes earthquakes
         const int safeArea = 1;
 
@@ -56,13 +61,33 @@ public static class Program
 
         var videoSize = new Size(videoSizeRaw.Width, videoSizeRaw.Height);
 
-        videoSize.Width *= 2;
+        var videoSizeAdjustedToConsole = videoSize;
 
-        var calculatedSize = AspectRatioResizeCalculator(videoSize, consoleSize);
+        videoSizeAdjustedToConsole.Width *= 2;
+
+        var calculatedSize = AspectRatioResizeCalculator(videoSizeAdjustedToConsole, consoleSize);
+
+        var pixelCount = calculatedSize.Width * calculatedSize.Height;
+
+        var framebufferSize = 0;
+
+        // Review that
+        if (Render.Encoding == Encoding.ASCII)
+        {
+            framebufferSize = sizeof(byte);
+        }
+        else if (Render.Encoding == Encoding.UTF8)
+        {
+            framebufferSize = (int)(sizeof(byte) * 1.3);
+        }
+        else if (Render.Encoding == Encoding.Unicode)
+        {
+            framebufferSize = sizeof(byte) * 2;
+        }
 
         var converters = new DefaultObjectPoolProvider().Create(new BitmapToAsciiPooledObjectPolicy()
         {
-            CacheDefaultCapacity = 0,
+            CacheDefaultCapacity = framebufferSize,
         });
 
         var render = new Render()
@@ -114,13 +139,24 @@ public static class Program
             }
         });
 
+        var options = new ResizeOptions
+        {
+            Size = calculatedSize,
+            Mode = ResizeMode.Manual,
+            Sampler = KnownResamplers.NearestNeighbor,
+            TargetRectangle = new Rectangle(0, 0, calculatedSize.Width, calculatedSize.Height),
+            Compand = false,
+        };
+
+        var resizeProcessor = new ResizeProcessor(options, videoSize);
+
         await DynamicParallel.ForEachAsync(file.Video.GetFramesEnumerable(), parallelOptions, async (framePos, ct) =>
         {
             var image = framePos.Frame;
 
             image.Mutate((ob) =>
             {
-                ob.Resize(calculatedSize);
+                ob.ApplyProcessor(resizeProcessor);
             });
 
             var converter = converters.Get();
@@ -137,11 +173,9 @@ public static class Program
         await pending;
     }
 
-    public static int StartedToProcessProcessedFrames = 0;
-
     private static readonly Configuration Configuration = new()
     {
-        PreferContiguousImageBuffers = true,
+        //PreferContiguousImageBuffers = true,
     };
 
     public static Image<Bgr24> ToBitmap(this ImageData imageData)
@@ -149,6 +183,7 @@ public static class Program
         return Image.LoadPixelData<Bgr24>(Configuration, imageData.Data, imageData.ImageSize.Width, imageData.ImageSize.Height);
     }
 
+    public static int StartedToProcessProcessedFrames = 0;
     private static IEnumerable<FramePosition> GetFramesEnumerable(this VideoStream video)
     {
         while (video.TryGetNextFrame(out var frame))
@@ -218,51 +253,5 @@ public static class Program
     private static decimal CoefficientChange(int valorInicial, int valorFinal)
     {
         return 100M / valorInicial * valorFinal / 100;
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    public static async Task ConvertPictureAsync(string path, Stream output)
-    {
-        var image = await Image.LoadAsync(path);
-
-        var targetSize = new Size(1080, 1920) / 10;
-
-        var resize = AspectRatioResizeCalculator(image.Size, targetSize);
-
-        resize.Width *= 2;
-
-        image.Mutate((ob) =>
-        {
-            ob.Resize(resize);
-        });
-
-        var converter = new BitmapToAscii(new MemoryStream(0));
-
-        var img = image.CloneAs<Bgr24>();
-
-        converter.Convert(img);
-
-        await converter.FrameBuffer.CopyToAsync(output);
     }
 }

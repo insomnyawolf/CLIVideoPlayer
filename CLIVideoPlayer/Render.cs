@@ -24,17 +24,28 @@ public class Render
     }
     public Stream StdOut { get; set; }
 
-
-    public static readonly byte[] CursorReset = Encoding.UTF8.GetBytes("\x1b[99999;99999");
-    public static readonly byte[] CursorSavePos = Encoding.UTF8.GetBytes("\x1b[s");
-    public static readonly byte[] CursorLoadPos = Encoding.UTF8.GetBytes("\x1b[u");
-    public static readonly byte[] ClearScreen = Encoding.UTF8.GetBytes("\x1b[2J");
+    // By using ascii we improve the performance a lot, we can still represent every color but we only need to write half of the bytes
+    // Also since ascii has a fixed size, we can calculate the buffers and allocate them in the required size directly
+    public static readonly Encoding Encoding = Encoding.ASCII;
+    //public static readonly Encoding Encoding = Encoding.Unicode;
+    public static readonly byte[] CursorReset = Encoding.GetBytes("\x1b[99999;99999");
+    public static readonly byte[] CursorSavePos = Encoding.GetBytes("\x1b[s");
+    public static readonly byte[] CursorLoadPos = Encoding.GetBytes("\x1b[u");
+    public static readonly byte[] ClearScreen = Encoding.GetBytes("\x1b[2J");
 
     public Render()
     {
-        this.StdOut = Console.OpenStandardOutput();
+        //this.StdOut = Console.OpenStandardOutput();
+
+        // With this i can prove that the bottleneck is the windows console
+        this.StdOut = Stream.Null;
+
+        //var handle = FastConsole.CreateOutputHandle();
+        //var fs = new FileStream(handle, FileAccess.ReadWrite);
+        //this.StdOut = fs;
 
         StdOut.Write(CursorSavePos);
+        StdOut.Flush();
     }
 
     public async Task Draw(Stream FrameBuffer)

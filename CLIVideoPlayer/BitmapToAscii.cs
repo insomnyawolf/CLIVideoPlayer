@@ -2,10 +2,12 @@
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
+using System.Collections.Immutable;
+using System.Drawing;
 using System.IO;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace CLIVideoPlayer;
 
@@ -30,40 +32,32 @@ public class BitmapToAsciiPooledObjectPolicy : PooledObjectPolicy<BitmapToAscii>
     }
 }
 
-public class ConversionValue
+public unsafe class BitmapToAscii
 {
-    public int Threshold { get; }
-    public byte[] Value { get; }
-    public ConversionValue(int Threshold, string Value)
-    {
-        this.Threshold = Threshold;
-        this.Value = Encoding.UTF8.GetBytes(Value);
-    }
-}
+    public static readonly ReadOnlyMemory<byte> NewLine = Render.Encoding.GetBytes("\n");
 
-public class BitmapToAscii
-{
-    public static readonly byte[] NewLine = Encoding.UTF8.GetBytes("\n");
-
-    public static readonly byte[] Pixel = Encoding.UTF8.GetBytes(" ");
+    public static readonly ReadOnlyMemory<byte> Pixel = Render.Encoding.GetBytes(" ");
 
     // "\x1b[48;2;{color.R};{color.G};{color.B}m{Pixel}"
-    public static readonly byte[] ColorChange = Encoding.UTF8.GetBytes("\x1b[48;2;");
+    public static readonly ReadOnlyMemory<byte> ColorChange = Render.Encoding.GetBytes("\x1b[48;2;");
 
-    public static readonly byte[] Semicolon = Encoding.UTF8.GetBytes(";");
+    public static readonly ReadOnlyMemory<byte> Semicolon = Render.Encoding.GetBytes(";");
 
-    public static readonly byte[] CharM = Encoding.UTF8.GetBytes("m");
+    public static readonly ReadOnlyMemory<byte> CharM = Render.Encoding.GetBytes("m");
 
     [UnsafeAccessor(kind: UnsafeAccessorKind.Field, Name = "frames")]
     public static extern ref ImageFrameCollection<Bgr24> GetFrames(Image<Bgr24> image);
 
-    private static readonly byte[][] NumberCache = new byte[256][];
+    private static readonly ReadOnlyMemory<byte>[] NumberCache = new ReadOnlyMemory<byte>[256];
+    //private static readonly ReadOnlyMemory<byte>* NumberCacheRef;
     static BitmapToAscii()
     {
         for (var i = 0; i < NumberCache.Length; i++)
         {
-            NumberCache[i] = Encoding.UTF8.GetBytes(i + "");
+            NumberCache[i] = Render.Encoding.GetBytes(i + "");
         }
+
+        //NumberCacheRef = (ReadOnlyMemory<byte>*)Unsafe.AsPointer(ref NumberCache[0]);
     }
     public MemoryStream FrameBuffer { get; init; }
     public StreamWriter StreamWriter { get; init; }
@@ -76,9 +70,9 @@ public class BitmapToAscii
 
     public void Convert(Image<Bgr24> image)
     {
-        ref var numberCacheRef = ref MemoryMarshal.GetArrayDataReference(NumberCache);
-
-        Bgr24? lastColor = null;
+        Bgr24 lastColor = new Bgr24();
+        // That's more performant than having the nullable
+        WriteColor(lastColor);
 
         var frames = GetFrames(image);
         var rf = frames.RootFrame;
@@ -87,58 +81,73 @@ public class BitmapToAscii
         // Loop through each pixel in the bitmap
         for (int y = 0; y < image.Height; y++)
         {
-            var row = pixelBuffer.DangerousGetRowSpan(y);
+            var rowSpan = pixelBuffer.DangerousGetRowSpan(y);
 
-            ref var position = ref MemoryMarshal.GetReference(row);
-            ref var end = ref Unsafe.Add(ref position, row.Length);
-
-            while (Unsafe.IsAddressLessThan(ref position, ref end))
+            fixed (Bgr24* altItems = &rowSpan[0])
             {
-                var color = position;
+                var position = 0;
 
-                if (color != lastColor)
+                while (position < rowSpan.Length)
                 {
-                    lastColor = color;
+                    Bgr24 color = altItems[position];
 
-                    // Add the color Change
-                    FrameBuffer.Write(ColorChange);
+                    ////Slower than the alternative
+                    //var current = *(int*)&color;
+                    //var old = *(int*)&lastColor;
+                    //if (current != old)
 
-                    ref var R = ref Unsafe.Add(ref numberCacheRef, color.R);
-                    FrameBuffer.Write(R);
+                    // Nullable performance hit is freaking scary lol
+                    // if (/*lastColor is null || */!IsSameColor(color, lastColor))
 
-                    FrameBuffer.Write(Semicolon);
+                    if (!IsSameColor(color, lastColor))
+                    {
+                        lastColor = color;
 
-                    ref var G = ref Unsafe.Add(ref numberCacheRef, color.G);
-                    FrameBuffer.Write(G);
+                        WriteColor(color);
+                    }
 
-                    FrameBuffer.Write(Semicolon);
+                    // Add the pixel
+                    FrameBuffer.Write(Pixel.Span);
 
-                    ref var B = ref Unsafe.Add(ref numberCacheRef, color.B);
-                    FrameBuffer.Write(B);
-
-                    FrameBuffer.Write(CharM);
+                    position++;
                 }
 
-                // Add the pixel
-                FrameBuffer.Write(Pixel);
-
-                position = ref Unsafe.Add(ref position, 1);
+                // Append new line because it doesn't look right otherwise
+                FrameBuffer.Write(NewLine.Span);
             }
-
-            // Append new line because it doesn't look right otherwise
-            FrameBuffer.Write(NewLine);
         }
 
         FrameBuffer.Position = 0;
     }
-}
 
-public static class Extensions
-{
-    public static string ConvertToBase64(this MemoryStream stream)
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    private void WriteColor(Bgr24 color)
     {
-        byte[] bytes = stream.ToArray();
-        string base64 = Convert.ToBase64String(bytes);
-        return base64;
+        // Add the color Change
+        FrameBuffer.Write(ColorChange.Span);
+
+        var R = NumberCache[color.R];
+        FrameBuffer.Write(R.Span);
+
+        FrameBuffer.Write(Semicolon.Span);
+
+        var G = NumberCache[color.G];
+        FrameBuffer.Write(G.Span);
+
+        FrameBuffer.Write(Semicolon.Span);
+
+        var B = NumberCache[color.B];
+        FrameBuffer.Write(B.Span);
+
+        FrameBuffer.Write(CharM.Span);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    private static bool IsSameColor(Bgr24 a, Bgr24 b)
+    {
+        var result = a.R == b.R &&
+                     a.G == b.G &&
+                     a.B == b.B;
+        return result;
     }
 }
